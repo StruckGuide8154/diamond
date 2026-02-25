@@ -217,11 +217,11 @@
             opacity: 1;
         }
 
-        .slide-bg {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            object-position: center;
+        .slide-bg-css {
+            position: absolute;
+            inset: 0;
+            background-size: cover;
+            background-position: center;
         }
 
         .slide-overlay {
@@ -1452,7 +1452,7 @@
         <div class="slider" id="heroSlider">
 
             <div class="slide active" id="slide-0">
-                <img class="slide-bg" src="https://beautydiamondsalon.co.uk/wp-content/uploads/2018/12/slider-1.jpg" alt="Diamond Beauty Clinic" onerror="this.style.background='linear-gradient(135deg,#0D2B45,#1A5276)';this.style.minHeight='100%'">
+                <div class="slide-bg-css" style="background-image: url('hero.png');"></div>
                 <div class="slide-overlay"></div>
                 <div class="slide-content">
                     <div class="slide-content-inner">
@@ -1468,7 +1468,7 @@
             </div>
 
             <div class="slide" id="slide-1">
-                <img class="slide-bg" src="https://beautydiamondsalon.co.uk/wp-content/uploads/2018/12/slider-2.jpg" alt="Diamond Beauty Clinic" onerror="this.style.background='linear-gradient(135deg,#1A5276,#2C6DA8)';this.style.minHeight='100%'">
+                <div class="slide-bg-css" style="background-image: url('laser.png');"></div>
                 <div class="slide-overlay"></div>
                 <div class="slide-content">
                     <div class="slide-content-inner">
@@ -1484,8 +1484,8 @@
             </div>
 
             <div class="slide" id="slide-2">
-                <img class="slide-bg" src="https://beautydiamondsalon.co.uk/wp-content/uploads/2018/12/slider-3.jpg" alt="Diamond Beauty Clinic" onerror="this.style.background='linear-gradient(135deg,#0D2B45,#3A8DC5)';this.style.minHeight='100%'">
-                <div class="slide-overlay"></div>
+                <div class="slide-bg-css" style="background-image: url('hero.png'); background-position: 60% center;"></div>
+                <div class="slide-overlay" style="background: linear-gradient(135deg, rgba(13,43,69,0.78) 0%, rgba(58,141,197,0.45) 60%, rgba(127,185,224,0.2) 100%);"></div>
                 <div class="slide-content">
                     <div class="slide-content-inner">
                         <span class="slide-tag">Hair & Beauty Excellence</span>
