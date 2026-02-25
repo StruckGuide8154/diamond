@@ -23,8 +23,15 @@ app.secret_key = os.environ.get('SECRET_KEY', 'default-dev-secret-key-for-pie-se
 # --- Main Site Routes ---
 @app.route('/')
 def home():
-    """Serves the index.html file."""
     return render_template('index.html')
+
+@app.route('/prices.html')
+def prices():
+    return render_template('prices.html')
+
+@app.route('/<path:filename>')
+def static_files(filename):
+    return send_from_directory('.', filename)
 
 
 # --- Main Entry Point ---
