@@ -5,6 +5,9 @@ Our Clinic, Boutique, Product Detail, Contact/Booking, Checkout — plus an
 **admin dashboard** at `admin.html`.
 
 **Live site:** https://struckguide8154.github.io/diamond/
+(also served at http://rooted.cloud/diamond/ via the account's custom Pages domain)
+
+**Admin dashboard:** https://struckguide8154.github.io/diamond/admin.html
 
 ## How it works
 
