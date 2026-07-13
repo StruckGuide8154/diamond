@@ -1,0 +1,126 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin | Diamond Beauty</title><link rel="stylesheet" href="assets/css/style.css">
+<style>
+.admin-wrap{max-width:1000px;margin:60px auto;padding:0 20px}
+.admin-card{background:#fff;border:1px solid #e8e0da;border-radius:8px;padding:28px;margin-bottom:24px}
+.admin-login{max-width:420px;margin:80px auto}
+.admin-tabs{display:flex;gap:10px;margin:24px 0}
+.admin-tabs button{padding:10px 22px;border:1px solid #b98;background:#fff;cursor:pointer;border-radius:30px;font-size:14px}
+.admin-tabs button.active{background:#7a2d3a;color:#fff;border-color:#7a2d3a}
+.rec{border-top:1px solid #eee;padding:16px 0}
+.rec:first-child{border-top:none}
+.rec-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.rec-head b{font-size:16px}
+.rec-head time{color:#997;font-size:13px}
+.rec p{margin:6px 0;color:#443;font-size:14px;white-space:pre-wrap}
+.rec .pill{display:inline-block;font-size:12px;padding:2px 10px;border-radius:20px;background:#f3e8dd;margin-right:8px}
+.rec .pill.new{background:#7a2d3a;color:#fff}
+.rec-actions{margin-top:8px;display:flex;gap:8px;flex-wrap:wrap}
+.rec-actions button{font-size:13px;padding:6px 14px;border:1px solid #ccc;background:#fff;border-radius:20px;cursor:pointer}
+.rec-actions button:hover{background:#f6efe9}
+.admin-msg{color:#7a2d3a;margin-top:12px;font-size:14px}
+#admin-bar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+</style></head><body>
+<script src="assets/js/components.js"></script><script>header()</script>
+<div class="admin-wrap">
+
+<div id="not-configured" class="admin-card" style="display:none">
+<h2>Admin not configured yet</h2>
+<p>The database connection has not been set up. Follow the steps in <b>README.md</b> (create a free Supabase project, run <b>supabase/setup.sql</b>, then paste the project URL and anon key into <b>assets/js/config.js</b>).</p>
+</div>
+
+<div id="login-view" class="admin-card admin-login" style="display:none">
+<div class="eyebrow">Diamond Beauty</div>
+<h2>Admin <span class="script">sign in.</span></h2>
+<form class="form" id="login-form" style="margin-top:20px">
+<label for="a-email">Email</label><input id="a-email" type="email" required autocomplete="username">
+<label for="a-pass">Password</label><input id="a-pass" type="password" required autocomplete="current-password">
+<button class="btn" type="submit" style="margin-top:18px">Sign in</button>
+<div class="admin-msg" id="login-msg"></div>
+</form>
+</div>
+
+<div id="dash-view" style="display:none">
+<div id="admin-bar">
+<h2>Clinic <span class="script">dashboard.</span></h2>
+<button class="btn ghost" style="min-height:38px;padding:0 18px" id="signout">Sign out</button>
+</div>
+<div class="admin-tabs">
+<button id="tab-messages" class="active">Booking requests <span id="count-messages"></span></button>
+<button id="tab-orders">Orders <span id="count-orders"></span></button>
+</div>
+<div class="admin-card" id="records">Loading…</div>
+</div>
+
+</div>
+<script src="assets/js/config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="assets/js/db.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+let tab = 'messages';
+let cache = { messages: [], orders: [] };
+
+function show(view) {
+  ['not-configured', 'login-view', 'dash-view'].forEach(v => $(v).style.display = v === view ? 'block' : 'none');
+}
+
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+function fmtDate(d) { return new Date(d).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }); }
+
+function render() {
+  $('tab-messages').className = tab === 'messages' ? 'active' : '';
+  $('tab-orders').className = tab === 'orders' ? 'active' : '';
+  $('count-messages').textContent = `(${cache.messages.length})`;
+  $('count-orders').textContent = `(${cache.orders.length})`;
+  const rows = cache[tab];
+  if (!rows.length) { $('records').innerHTML = '<p>Nothing here yet.</p>'; return; }
+  $('records').innerHTML = rows.map(r => {
+    const contact = `${esc(r.email)}${r.phone ? ' · ' + esc(r.phone) : ''}`;
+    const body = tab === 'messages'
+      ? `<p><span class="pill">${esc(r.treatment || 'General')}</span>${contact}</p><p>${esc(r.message || '')}</p>`
+      : `<p>${contact}</p><p>${(r.items || []).map(i => `${esc(i.name)} × ${i.qty} — £${(i.price * i.qty).toFixed(2)}`).join('<br>')}</p><p><b>Total £${Number(r.total).toFixed(2)}</b></p>${r.notes ? `<p>${esc(r.notes)}</p>` : ''}`;
+    const statuses = tab === 'messages' ? ['new', 'handled'] : ['new', 'confirmed', 'fulfilled', 'cancelled'];
+    const actions = statuses.filter(s => s !== r.status).map(s => `<button onclick="setStatus('${r.id}','${s}')">Mark ${s}</button>`).join('')
+      + `<button onclick="removeRec('${r.id}')" style="color:#a33">Delete</button>`;
+    return `<div class="rec"><div class="rec-head"><b>${esc(r.name)}</b><span><span class="pill ${r.status === 'new' ? 'new' : ''}">${esc(r.status)}</span><time>${fmtDate(r.created_at)}</time></span></div>${body}<div class="rec-actions">${actions}</div></div>`;
+  }).join('');
+}
+
+async function load() {
+  $('records').textContent = 'Loading…';
+  try {
+    [cache.messages, cache.orders] = await Promise.all([DB.list('messages'), DB.list('orders')]);
+    render();
+  } catch (err) {
+    $('records').textContent = 'Failed to load: ' + err.message;
+  }
+}
+
+window.setStatus = async (id, status) => { await DB.setStatus(tab, id, status); load(); };
+window.removeRec = async id => { if (confirm('Delete this record permanently?')) { await DB.remove(tab, id); load(); } };
+
+$('tab-messages').onclick = () => { tab = 'messages'; render(); };
+$('tab-orders').onclick = () => { tab = 'orders'; render(); };
+
+(async function init() {
+  if (!DB.ready) { show('not-configured'); return; }
+  const session = await DB.session();
+  if (!session) { show('login-view'); return; }
+  show('dash-view'); load();
+})();
+
+document.getElementById('login-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  $('login-msg').textContent = '';
+  try {
+    await DB.signIn($('a-email').value.trim(), $('a-pass').value);
+    show('dash-view'); load();
+  } catch (err) {
+    $('login-msg').textContent = 'Sign in failed: ' + err.message;
+  }
+});
+
+$('signout').onclick = async () => { await DB.signOut(); show('login-view'); };
+</script>
+</body></html>

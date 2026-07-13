@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1400" viewBox="0 0 800 1400">
+<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#efe7df"/><stop offset="1" stop-color="#fbf8f4"/></linearGradient><linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff"/><stop offset=".45" stop-color="#f4ede7"/><stop offset="1" stop-color="#d8c7ba"/></linearGradient><filter id="shadow"><feDropShadow dx="0" dy="20" stdDeviation="20" flood-opacity=".14"/></filter></defs>
+<rect width="800" height="1400" fill="url(#bg)"/><circle cx="650" cy="220" r="160" fill="#c28d82" opacity=".10"/><circle cx="120" cy="1220" r="220" fill="#c28d82" opacity=".08"/><g filter="url(#shadow)"><ellipse cx="400" cy="1180" rx="180" ry="34" fill="#3d2c2b" opacity=".12"/><rect x="285" y="410" width="230" height="690" rx="52" fill="url(#glass)"/><rect x="315" y="320" width="170" height="130" rx="20" fill="#2f2928"/><rect x="345" y="175" width="110" height="175" rx="40" fill="#2f2928"/></g>
+<rect x="275" y="600" width="250" height="300" rx="8" fill="#fffdf9" opacity=".96"/><rect x="275" y="600" width="250" height="14" fill="#c28d82"/>
+<text x="400" y="662" text-anchor="middle" font-family="Arial, sans-serif" font-size="26" letter-spacing="7" fill="#302929">BANDI</text>
+<text x="400" y="738" text-anchor="middle" font-family="Georgia, serif" font-size="34" fill="#302929">HYALURONIC</text>
+<text x="400" y="787" text-anchor="middle" font-family="Arial, sans-serif" font-size="17" letter-spacing="3" fill="#c28d82">CONCENTRATE</text>
+<line x1="325" y1="825" x2="475" y2="825" stroke="#cdbeb2"/>
+<text x="400" y="866" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" letter-spacing="3" fill="#746b67">DIAMOND BEAUTY EDIT</text>
+</svg>

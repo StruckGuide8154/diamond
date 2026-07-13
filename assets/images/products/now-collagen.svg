@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1400" viewBox="0 0 800 1400">
+<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f4efe8"/><stop offset="1" stop-color="#fbf8f4"/></linearGradient><linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff"/><stop offset=".45" stop-color="#f4ede7"/><stop offset="1" stop-color="#d8c7ba"/></linearGradient><filter id="shadow"><feDropShadow dx="0" dy="20" stdDeviation="20" flood-opacity=".14"/></filter></defs>
+<rect width="800" height="1400" fill="url(#bg)"/><circle cx="650" cy="220" r="160" fill="#bc765f" opacity=".10"/><circle cx="120" cy="1220" r="220" fill="#bc765f" opacity=".08"/><g filter="url(#shadow)"><ellipse cx="400" cy="1190" rx="235" ry="38" fill="#3d2c2b" opacity=".12"/><rect x="180" y="430" width="440" height="650" rx="75" fill="#fffdf9"/><rect x="165" y="350" width="470" height="150" rx="40" fill="#ece6df"/><path d="M205 440h390" stroke="#cfc2b7" stroke-width="6"/></g>
+<rect x="275" y="640" width="250" height="300" rx="8" fill="#fffdf9" opacity=".96"/><rect x="275" y="640" width="250" height="14" fill="#bc765f"/>
+<text x="400" y="702" text-anchor="middle" font-family="Arial, sans-serif" font-size="26" letter-spacing="7" fill="#302929">NOW</text>
+<text x="400" y="778" text-anchor="middle" font-family="Georgia, serif" font-size="34" fill="#302929">COLLAGEN</text>
+<text x="400" y="827" text-anchor="middle" font-family="Arial, sans-serif" font-size="17" letter-spacing="3" fill="#bc765f">PEPTIDES</text>
+<line x1="325" y1="865" x2="475" y2="865" stroke="#cdbeb2"/>
+<text x="400" y="906" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" letter-spacing="3" fill="#746b67">DIAMOND BEAUTY EDIT</text>
+</svg>
