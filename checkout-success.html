@@ -1,0 +1,24 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Payment complete | Diamond Beauty</title><link rel="stylesheet" href="assets/css/style.css"></head><body><script src="assets/js/components.js"></script><script>header()</script>
+<main class="section"><div class="container"><section class="contact-stage"><div class="contact-panel" style="max-width:640px;margin:70px auto;text-align:center">
+<div class="eyebrow">Stripe checkout</div><h2>Thank you <span class="script">beautiful.</span></h2><p id="payment-state">Confirming your payment…</p><p id="order-ref" class="legal"></p><a class="btn" href="shop.html" style="margin-top:20px">Return to boutique</a>
+</div></section></div></main><script>footer()</script>
+<script>
+(async()=>{
+  const id=new URLSearchParams(location.search).get('session_id');
+  const state=document.getElementById('payment-state');
+  const ref=document.getElementById('order-ref');
+  if(!id){state.textContent='Payment finished, but no checkout reference was supplied.';return}
+  try{
+    const res=await fetch('/api/checkout/status?session_id='+encodeURIComponent(id),{headers:{Accept:'application/json'}});
+    const data=await res.json();
+    if(!res.ok)throw new Error(data.error||'Order status unavailable');
+    localStorage.removeItem('diamond-cart');
+    if(data.payment_status==='paid'){
+      state.textContent='Payment received. Your order is now in the clinic dashboard.';
+    }else{
+      state.textContent='Stripe returned successfully. Payment confirmation is still processing and the dashboard will update from the Stripe webhook.';
+    }
+    ref.textContent='Order '+data.id;
+  }catch(err){state.textContent='Payment returned successfully. The order status is still being confirmed.'}
+})();
+</script></body></html>
