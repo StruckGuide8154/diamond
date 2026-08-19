@@ -1,53 +1,54 @@
 <!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Checkout | Diamond Beauty</title><link rel="stylesheet" href="assets/css/style.css"></head><body><script src="assets/js/components.js"></script><script>header()</script>
 <main class="section"><div class="container">
-<div class="intro"><div class="eyebrow">Secure checkout</div><h2>Complete your <span class="script">order.</span></h2><p>Send us your order request and we will confirm availability, payment and collection or delivery by email or phone.</p></div>
+<div class="intro"><div class="eyebrow">Secure checkout</div><h2>Complete your <span class="script">order.</span></h2><p>Your bag is checked against live stock and server-side pricing before Stripe opens.</p></div>
 <section class="contact-stage" style="margin-top:40px"><div class="contact-panel" style="max-width:640px;margin:0 auto">
 <div id="order-summary"></div>
 <form class="form" id="order-form" style="margin-top:24px">
 <div class="form-row"><div><label for="o-name">Your name</label><input id="o-name" placeholder="Full name" required></div><div><label for="o-email">Email address</label><input id="o-email" type="email" placeholder="you@example.com" required></div></div>
 <label for="o-phone">Telephone</label><input id="o-phone" type="tel" placeholder="Your number">
 <label for="o-notes">Notes</label><textarea id="o-notes" placeholder="Collection, delivery or anything we should know"></textarea>
-<div class="contact-note"><p>Nothing is charged online. We confirm every order personally before payment.</p><button class="btn" type="submit">Place order request</button></div>
+<p id="order-error" style="color:#7a2d3a"></p>
+<div class="contact-note"><p>Payment is handled by Stripe. Diamond Beauty never receives or stores your card number.</p><button class="btn" type="submit">Pay securely with Stripe</button></div>
 </form>
-<p id="order-done" style="display:none">Thank you — your order request has been received. We will be in touch shortly to confirm.</p>
 <p style="margin-top:20px"><a href="shop.html">← Return to boutique</a></p>
 </div></section>
 </div></main>
 <script>footer()</script><script src="assets/js/products.js"></script><script src="assets/js/app.js"></script>
-<script src="assets/js/config.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="assets/js/db.js"></script>
 <script>
-const bag = JSON.parse(localStorage.getItem('diamond-cart') || '[]')
-  .map(i => { const p = PRODUCTS.find(x => x.id === i.id); return p ? { id: p.id, name: p.name, qty: i.qty, price: p.price } : null; })
-  .filter(Boolean);
-const bagTotal = bag.reduce((a, b) => a + b.price * b.qty, 0);
-document.getElementById('order-summary').innerHTML = bag.length
-  ? '<div class="eyebrow">Your bag</div>' + bag.map(i => `<div style="display:flex;justify-content:space-between;padding:6px 0"><span>${i.name} × ${i.qty}</span><span>${formatGBP(i.price * i.qty)}</span></div>`).join('')
-    + `<div style="display:flex;justify-content:space-between;padding:12px 0;border-top:1px solid #ddd;margin-top:8px"><b>Total</b><b>${formatGBP(bagTotal)}</b></div>`
-  : '<p>Your bag is empty — <a href="shop.html">visit the boutique</a> to add products.</p>';
-
-document.getElementById('order-form').addEventListener('submit', async function (e) {
+const rawBag=JSON.parse(localStorage.getItem('diamond-cart')||'[]');
+const bag=rawBag.map(i=>{const p=PRODUCTS.find(x=>x.id===i.id);return p?{id:p.id,name:p.name,qty:i.qty,price:p.price}:null}).filter(Boolean);
+function renderSummary(){
+  const total=bag.reduce((a,b)=>a+b.price*b.qty,0);
+  document.getElementById('order-summary').innerHTML=bag.length
+    ?'<div class="eyebrow">Your bag</div>'+bag.map(i=>`<div style="display:flex;justify-content:space-between;padding:6px 0"><span>${i.name} × ${i.qty}</span><span>${formatGBP(i.price*i.qty)}</span></div>`).join('')+`<div style="display:flex;justify-content:space-between;padding:12px 0;border-top:1px solid #ddd;margin-top:8px"><b>Estimated total</b><b>${formatGBP(total)}</b></div><p class="legal">Final price and stock are verified by the server.</p>`
+    :'<p>Your bag is empty — <a href="shop.html">visit the boutique</a> to add products.</p>';
+}
+renderSummary();
+if(new URLSearchParams(location.search).get('cancelled'))document.getElementById('order-error').textContent='Payment was cancelled. Your reserved stock will return automatically when the Stripe Checkout Session expires.';
+document.getElementById('order-form').addEventListener('submit',async function(e){
   e.preventDefault();
-  if (!bag.length) { alert('Your bag is empty.'); return; }
-  const btn = this.querySelector('button');
-  const val = id => document.getElementById(id).value.trim();
-  const payload = { name: val('o-name'), email: val('o-email'), phone: val('o-phone'), notes: val('o-notes'), items: bag, total: bagTotal };
-  if (!DB.ready) {
-    location.href = 'mailto:info@beautydiamondsalon.co.uk?subject=' + encodeURIComponent('Order request from ' + payload.name)
-      + '&body=' + encodeURIComponent(`Name: ${payload.name}\nEmail: ${payload.email}\nPhone: ${payload.phone}\n\n` + bag.map(i => `${i.name} x${i.qty} — ${formatGBP(i.price * i.qty)}`).join('\n') + `\nTotal: ${formatGBP(bagTotal)}\n\n${payload.notes}`);
-    return;
-  }
-  btn.disabled = true; btn.textContent = 'Sending…';
-  try {
-    await DB.placeOrder(payload);
-    localStorage.removeItem('diamond-cart');
-    this.style.display = 'none';
-    document.getElementById('order-done').style.display = 'block';
-  } catch (err) {
-    console.error(err);
-    btn.disabled = false; btn.textContent = 'Try again — sending failed';
+  if(!bag.length){document.getElementById('order-error').textContent='Your bag is empty.';return}
+  const btn=this.querySelector('button');
+  const error=document.getElementById('order-error');
+  const val=id=>document.getElementById(id).value.trim();
+  btn.disabled=true;btn.textContent='Opening Stripe…';error.textContent='';
+  try{
+    const res=await fetch('/api/checkout',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Accept':'application/json'},
+      body:JSON.stringify({
+        name:val('o-name'),email:val('o-email'),phone:val('o-phone'),notes:val('o-notes'),
+        items:bag.map(i=>({id:i.id,qty:i.qty}))
+      })
+    });
+    const data=await res.json();
+    if(!res.ok){
+      if(data.shortages?.length)throw new Error(data.shortages.map(x=>`${x.name}: ${x.available} available`).join(' · '));
+      throw new Error(data.error||'Checkout could not start.');
+    }
+    location.assign(data.url);
+  }catch(err){
+    btn.disabled=false;btn.textContent='Pay securely with Stripe';error.textContent=err.message||'Checkout could not start.';
   }
 });
-</script>
-</body></html>
+</script></body></html>

@@ -1,63 +1,85 @@
 # Diamond Beauty
 
-Multi-page site for Diamond Beauty & Hair Clinic (Nottingham): Home, Treatments,
-Our Clinic, Boutique, Product Detail, Contact/Booking, Checkout — plus an
-**admin dashboard** at `admin.html`.
+Diamond Beauty & Hair Clinic storefront and booking site, now served by a single Flask application (`server.py`).
 
-**Live site:** https://struckguide8154.github.io/diamond/
-(also served at http://rooted.cloud/diamond/ via the account's custom Pages domain)
+## Architecture
 
-**Admin dashboard:** https://struckguide8154.github.io/diamond/admin.html
+- **Web server:** Flask serves the existing HTML/CSS/JS and all API routes.
+- **Persistence:** Railway Redis via `REDIS_URL`. No Supabase.
+- **Payments:** Stripe Checkout Sessions created server-side.
+- **Inventory:** Redis-backed stock. Stock is reserved before Stripe Checkout opens and returned when an unpaid Checkout Session expires or an admin cancels it.
+- **Admin:** `/admin.html` uses a server-side Flask session. The browser never receives Redis or Stripe secrets.
+- **Hosting:** Railway. There is no GitHub Pages or rooted.cloud runtime dependency.
 
-## How it works
+## Railway setup
 
-- **Hosting:** GitHub Pages (this repo, `main` branch). Every push to `main`
-  redeploys the site automatically.
-- **Database:** [Supabase](https://supabase.com) free tier (managed Postgres).
-  Booking requests from the contact page and order requests from checkout are
-  saved there, so **data persists forever** — it lives in the database, not on
-  the site, and is untouched by site updates or redeploys.
-- **Admin:** `admin.html` — sign in with your Supabase admin account to view,
-  update and delete booking requests and orders.
-- **Security:** the browser only ever holds the public *anon* key. Row-level
-  security means visitors can *submit* messages/orders but never read them;
-  only signed-in admins can.
-- **Keep-alive:** `.github/workflows/keepalive.yml` pings the database every
-  3 days so the free Supabase project is never paused for inactivity.
+1. Create or open the Railway project for this repo.
+2. Add a Redis service.
+3. On the app service, set `REDIS_URL` to the Redis service reference, normally `${{Redis.REDIS_URL}}`.
+4. Add the environment variables below.
+5. Deploy. `railway.json` starts Gunicorn with `server:app` and uses `/health` as the health check.
+6. In Stripe Workbench/Webhooks, create a webhook destination: `https://YOUR-RAILWAY-DOMAIN/api/stripe/webhook`.
+7. Subscribe it to `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, and `checkout.session.expired`.
+8. Put the webhook signing secret into `STRIPE_WEBHOOK_SECRET`.
+9. Open `/admin.html` and set real stock before selling. New Redis databases default products to `DEFAULT_STOCK`, which defaults to `0`.
 
-Until the database is configured, the contact and checkout forms gracefully
-fall back to opening an email to the clinic instead.
+## Required environment variables
 
-## One-time database setup (~5 minutes)
-
-1. Go to https://supabase.com → sign in with GitHub → **New project**
-   (free plan). Pick any name, e.g. `diamond-beauty`, region `West EU (London)`.
-2. When the project is ready, open **SQL Editor**, paste the contents of
-   [`supabase/setup.sql`](supabase/setup.sql), and click **Run**.
-3. Go to **Authentication → Sign In / Providers** and turn **OFF**
-   "Allow new users to sign up". *(Important — otherwise anyone could
-   register and see the admin data.)*
-4. Go to **Authentication → Users → Add user** and create your admin login
-   (your email + a strong password). Tick "Auto confirm user".
-5. Go to **Project Settings → API** and copy:
-   - **Project URL**
-   - **anon / public key**
-6. Paste both into [`assets/js/config.js`](assets/js/config.js), commit and push:
-
-   ```js
-   window.DIAMOND_CONFIG = {
-     SUPABASE_URL: "https://YOURPROJECT.supabase.co",
-     SUPABASE_ANON_KEY: "eyJ..."
-   };
-   ```
-
-That's it. The contact form and checkout now save to the database, and
-https://struckguide8154.github.io/diamond/admin.html is your dashboard.
-
-## Local preview
-
-Just open `index.html` in a browser, or run any static server, e.g.:
-
+```text
+REDIS_URL=${{Redis.REDIS_URL}}
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+ADMIN_PASSWORD=use-a-long-random-password
+SECRET_KEY=use-another-long-random-value
 ```
-python -m http.server
+
+Optional:
+
+```text
+ADMIN_EMAIL=admin@example.com
+DEFAULT_STOCK=0
+SESSION_COOKIE_SECURE=1
 ```
+
+`REDIS_URL` is the Railway-native name. `server.py` also accepts `REDIT_URL`, lowercase `redit_url`, or `REDIS_PUBLIC_URL` as fallbacks, but the private Railway `REDIS_URL` is preferred when Redis and the app are in the same project.
+
+## Payment and stock flow
+
+1. The browser submits product IDs and quantities only.
+2. `server.py` rebuilds the cart from its own canonical catalogue and prices.
+3. Redis stock is checked and reserved atomically.
+4. The server creates a Stripe-hosted Checkout Session and returns its URL.
+5. Stripe webhooks are the source of truth for payment state.
+6. A successful payment keeps the reserved stock consumed.
+7. An expired or failed Checkout Session restores the reserved stock idempotently.
+
+This prevents a customer from changing prices in DevTools and keeps abandoned Stripe sessions from permanently eating inventory.
+
+## Local development
+
+Install dependencies:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+Run Redis locally, then:
+
+```bash
+set REDIS_URL=redis://localhost:6379/0
+set STRIPE_SECRET_KEY=sk_test_...
+set STRIPE_WEBHOOK_SECRET=whsec_...
+set ADMIN_PASSWORD=dev-password
+set SECRET_KEY=dev-secret
+python server.py
+```
+
+On macOS/Linux, use `export` instead of `set`.
+
+For local webhook testing:
+
+```bash
+stripe listen --forward-to localhost:8080/api/stripe/webhook
+```
+
+Then open `http://localhost:8080/`.
