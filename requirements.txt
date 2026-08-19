@@ -1,0 +1,4 @@
+Flask>=3.0,<4
+redis>=5.0,<7
+stripe>=12
+gunicorn>=22
