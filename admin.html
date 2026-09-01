@@ -1,55 +1,354 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin | Diamond Beauty</title><link rel="stylesheet" href="assets/css/style.css">
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin | Diamond Beauty</title><meta name="robots" content="noindex,nofollow"><link rel="stylesheet" href="/assets/css/style.css">
 <style>
-.admin-wrap{max-width:1100px;margin:60px auto;padding:0 20px}.admin-card{background:#fff;border:1px solid #e8e0da;border-radius:8px;padding:28px;margin-bottom:24px}.admin-login{max-width:420px;margin:80px auto}.admin-tabs{display:flex;gap:10px;margin:24px 0;flex-wrap:wrap}.admin-tabs button{padding:10px 22px;border:1px solid #b98;background:#fff;cursor:pointer;border-radius:30px;font-size:14px}.admin-tabs button.active{background:#7a2d3a;color:#fff;border-color:#7a2d3a}.rec{border-top:1px solid #eee;padding:16px 0}.rec:first-child{border-top:none}.rec-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}.rec p{margin:6px 0;color:#443;font-size:14px;white-space:pre-wrap}.pill{display:inline-block;font-size:12px;padding:2px 10px;border-radius:20px;background:#f3e8dd;margin-right:8px}.pill.new,.pill.paid{background:#7a2d3a;color:#fff}.rec-actions{margin-top:8px;display:flex;gap:8px;flex-wrap:wrap}.rec-actions button,.stock-row button{font-size:13px;padding:7px 14px;border:1px solid #ccc;background:#fff;border-radius:20px;cursor:pointer}.admin-msg{color:#7a2d3a;margin-top:12px;font-size:14px}#admin-bar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}.stock-row{display:grid;grid-template-columns:1fr 110px 100px;gap:12px;align-items:center;padding:12px 0;border-top:1px solid #eee}.stock-row:first-child{border-top:none}.stock-row input{width:100%;padding:9px;border:1px solid #ccc;border-radius:6px}.muted{color:#887;font-size:13px}@media(max-width:650px){.stock-row{grid-template-columns:1fr 90px}.stock-row button{grid-column:1/-1}}
+.admin-wrap{max-width:1180px;margin:60px auto;padding:0 20px}
+.admin-card{background:#fff;border:1px solid #e8e0da;border-radius:8px;padding:28px;margin-bottom:24px}
+.admin-login{max-width:420px;margin:80px auto}
+.admin-tabs{display:flex;gap:10px;margin:24px 0;flex-wrap:wrap}
+.admin-tabs button{padding:10px 22px;border:1px solid #b98;background:#fff;cursor:pointer;border-radius:30px;font-size:14px}
+.admin-tabs button.active{background:#7a2d3a;color:#fff;border-color:#7a2d3a}
+.rec{border-top:1px solid #eee;padding:16px 0}.rec:first-child{border-top:none}
+.rec-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.rec p{margin:6px 0;color:#443;font-size:14px;white-space:pre-wrap}
+.pill{display:inline-block;font-size:12px;padding:2px 10px;border-radius:20px;background:#f3e8dd;margin-right:8px}
+.pill.new,.pill.paid,.pill.live{background:#7a2d3a;color:#fff}
+.pill.draft{background:#ddd;color:#333}
+.rec-actions{margin-top:8px;display:flex;gap:8px;flex-wrap:wrap}
+button.mini,.rec-actions button,.stock-row button{font-size:13px;padding:7px 14px;border:1px solid #ccc;background:#fff;border-radius:20px;cursor:pointer}
+button.mini:hover{border-color:#7a2d3a}
+.admin-msg{color:#7a2d3a;margin-top:12px;font-size:14px;min-height:18px}
+#admin-bar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+.stock-row{display:grid;grid-template-columns:1fr 110px 100px;gap:12px;align-items:center;padding:12px 0;border-top:1px solid #eee}
+.stock-row:first-child{border-top:none}
+.stock-row input,.editor input,.editor select,.editor textarea{width:100%;padding:9px;border:1px solid #ccc;border-radius:6px;font:inherit;font-size:14px;background:#fff}
+.muted{color:#887;font-size:13px}
+.prod-row{display:grid;grid-template-columns:64px 1fr auto;gap:14px;align-items:center;padding:14px 0;border-top:1px solid #eee}
+.prod-row:first-child{border-top:none}
+.prod-row img{width:64px;height:64px;object-fit:cover;border-radius:6px;background:#f6f1ec;border:1px solid #eee}
+.editor{display:grid;grid-template-columns:1fr 320px;gap:28px}
+.editor label{display:block;font-size:13px;margin:14px 0 5px;color:#665}
+.editor textarea{min-height:120px;resize:vertical}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.preview-card{border:1px solid #e8e0da;border-radius:8px;overflow:hidden;background:#fff}
+.preview-card img{width:100%;aspect-ratio:1/1;object-fit:cover;display:block;background:#f6f1ec}
+.preview-body{padding:14px}
+.dropzone{border:1px dashed #c9b6ae;border-radius:8px;padding:16px;text-align:center;font-size:13px;color:#776;margin-top:8px}
+.toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+@media(max-width:900px){.editor{grid-template-columns:1fr}}
+@media(max-width:650px){.stock-row{grid-template-columns:1fr 90px}.stock-row button{grid-column:1/-1}.grid2{grid-template-columns:1fr}.prod-row{grid-template-columns:48px 1fr}.prod-row img{width:48px;height:48px}.prod-row .rec-actions{grid-column:1/-1}}
 </style></head><body>
-<script src="assets/js/components.js"></script><script>header()</script>
+<script src="/assets/js/components.js"></script><script>header()</script>
 <div class="admin-wrap">
-<div id="setup-view" class="admin-card" style="display:none"><h2>Admin not configured</h2><p>Set <code>ADMIN_PASSWORD</code>, <code>SECRET_KEY</code> and <code>REDIS_URL</code> on Railway. <code>ADMIN_EMAIL</code> is optional.</p></div>
-<div id="login-view" class="admin-card admin-login" style="display:none"><div class="eyebrow">Diamond Beauty</div><h2>Admin <span class="script">sign in.</span></h2><form class="form" id="login-form" style="margin-top:20px"><label for="a-email">Email</label><input id="a-email" type="email" autocomplete="username"><label for="a-pass">Password</label><input id="a-pass" type="password" required autocomplete="current-password"><button class="btn" type="submit" style="margin-top:18px">Sign in</button><div class="admin-msg" id="login-msg"></div></form></div>
-<div id="dash-view" style="display:none"><div id="admin-bar"><h2>Clinic <span class="script">dashboard.</span></h2><button class="btn ghost" style="min-height:38px;padding:0 18px" id="signout">Sign out</button></div><div class="admin-tabs"><button data-tab="messages" class="active">Booking requests</button><button data-tab="orders">Orders</button><button data-tab="inventory">Stock control</button></div><div class="admin-card" id="records">Loading…</div></div>
+
+<div id="setup-view" class="admin-card" style="display:none">
+  <h2>Admin not configured</h2>
+  <p>Set <code>ADMINUSER</code>, <code>ADMINPASS</code>, <code>SECRET_KEY</code> and <code>REDIS_URL</code> on the server, then reload this page. Stripe uses <code>APISEC</code> and <code>APIPUB</code>.</p>
 </div>
+
+<div id="login-view" class="admin-card admin-login" style="display:none">
+  <div class="eyebrow">Diamond Beauty</div>
+  <h2>Admin <span class="script">sign in.</span></h2>
+  <form class="form" id="login-form" style="margin-top:20px" autocomplete="on">
+    <label for="a-user">Username</label><input id="a-user" autocomplete="username" required>
+    <label for="a-pass">Password</label><input id="a-pass" type="password" required autocomplete="current-password">
+    <button class="btn" type="submit" style="margin-top:18px">Sign in</button>
+    <div class="admin-msg" id="login-msg" role="alert"></div>
+  </form>
+</div>
+
+<div id="dash-view" style="display:none">
+  <div id="admin-bar">
+    <h2>Clinic <span class="script">dashboard.</span></h2>
+    <div style="display:flex;gap:10px;align-items:center"><span class="muted" id="who"></span><button class="btn ghost" style="min-height:38px;padding:0 18px" id="signout">Sign out</button></div>
+  </div>
+  <p class="muted" id="status-line"></p>
+  <div class="admin-tabs">
+    <button data-tab="catalogue" class="active">Products</button>
+    <button data-tab="inventory">Stock control</button>
+    <button data-tab="orders">Orders</button>
+    <button data-tab="messages">Booking requests</button>
+  </div>
+  <div class="admin-card" id="records">Loading…</div>
+</div>
+</div>
+
 <script>
-const $=id=>document.getElementById(id);let tab='messages';
+const $ = id => document.getElementById(id);
+let tab = 'catalogue';
+let csrf = '';
+let catalogue = [];
+let editing = null;
+
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function money(n){return new Intl.NumberFormat('en-GB',{style:'currency',currency:'GBP'}).format(Number(n||0))}
 function fmtDate(ts){return ts?new Date(Number(ts)*1000).toLocaleString('en-GB',{dateStyle:'medium',timeStyle:'short'}):''}
-async function api(url,opts={}){
-  const res=await fetch(url,{...opts,headers:{Accept:'application/json',...(opts.body?{'Content-Type':'application/json'}:{}),...(opts.headers||{})}});
-  let data={};try{data=await res.json()}catch(_){}
-  if(!res.ok){const e=new Error(data.error||`Request failed (${res.status})`);e.status=res.status;throw e}
+
+async function api(url, opts = {}) {
+  const headers = { Accept: 'application/json', ...(opts.headers || {}) };
+  if (opts.body && !(opts.body instanceof FormData)) headers['Content-Type'] = 'application/json';
+  if (csrf && !['GET', 'HEAD'].includes((opts.method || 'GET').toUpperCase())) headers['X-CSRF-Token'] = csrf;
+  const res = await fetch(url, { ...opts, headers, credentials: 'same-origin' });
+  let data = {};
+  try { data = await res.json(); } catch (_) {}
+  if (!res.ok) { const e = new Error(data.error || `Request failed (${res.status})`); e.status = res.status; throw e; }
   return data;
 }
+
 function show(view){['setup-view','login-view','dash-view'].forEach(v=>$(v).style.display=v===view?'block':'none')}
-async function load(){
-  $('records').textContent='Loading…';
-  try{
-    if(tab==='inventory'){const data=await api('/api/admin/inventory');renderInventory(data.products||[]);return}
-    const data=await api('/api/admin/'+tab);renderRecords(data.records||[]);
-  }catch(err){if(err.status===401){show('login-view');return}$('records').textContent=err.message}
+function fail(err){ if(err.status===401){show('login-view');return true} return false }
+
+async function load() {
+  $('records').textContent = 'Loading…';
+  try {
+    if (tab === 'catalogue') { catalogue = (await api('/api/admin/products')).products || []; renderCatalogue(); return; }
+    if (tab === 'inventory') { catalogue = (await api('/api/admin/inventory')).products || []; renderInventory(catalogue); return; }
+    renderRecords((await api('/api/admin/' + tab)).records || []);
+  } catch (err) { if (!fail(err)) $('records').textContent = err.message; }
 }
-function renderRecords(rows){
-  if(!rows.length){$('records').innerHTML='<p>Nothing here yet.</p>';return}
-  $('records').innerHTML=rows.map(r=>{
-    if(tab==='messages'){
-      const actions=r.status==='new'?`<button onclick="setStatus('${r.id}','handled')">Mark handled</button>`:`<button onclick="setStatus('${r.id}','new')">Mark new</button>`;
-      return `<div class="rec"><div class="rec-head"><b>${esc(r.name)}</b><span><span class="pill ${esc(r.status)}">${esc(r.status)}</span> <span class="muted">${fmtDate(r.created_at)}</span></span></div><p>${esc(r.email)}${r.phone?' · '+esc(r.phone):''}</p><p><span class="pill">${esc(r.treatment||'General')}</span></p><p>${esc(r.message||'')}</p><div class="rec-actions">${actions}<button onclick="removeRec('${r.id}')" style="color:#a33">Delete</button></div></div>`;
+
+/* ---------- products ---------- */
+
+function renderCatalogue() {
+  const rows = catalogue.map((p, i) => `<div class="prod-row">
+      <img src="${esc(p.image || '/assets/images/shop-still-life.svg')}" alt="">
+      <div>
+        <b>${esc(p.name)}</b> <span class="pill ${p.active ? 'live' : 'draft'}">${p.active ? 'Live' : 'Draft'}</span>
+        <div class="muted">${esc(p.brand || 'No brand')} · ${esc(p.category)} · ${money(p.price)} · ${p.stock} in stock</div>
+      </div>
+      <div class="rec-actions">
+        <button class="mini" data-act="edit" data-id="${esc(p.id)}">Edit</button>
+        <button class="mini" data-act="preview" data-id="${esc(p.id)}">Preview</button>
+        <button class="mini" data-act="toggle" data-id="${esc(p.id)}">${p.active ? 'Unpublish' : 'Publish'}</button>
+        <button class="mini" data-act="up" data-id="${esc(p.id)}" ${i === 0 ? 'disabled' : ''}>↑</button>
+        <button class="mini" data-act="down" data-id="${esc(p.id)}" ${i === catalogue.length - 1 ? 'disabled' : ''}>↓</button>
+        <button class="mini" data-act="delete" data-id="${esc(p.id)}" style="color:#a33">Delete</button>
+      </div>
+    </div>`).join('') || '<p>No products yet. Add your first one.</p>';
+
+  $('records').innerHTML = `<div class="toolbar"><div><div class="eyebrow">Catalogue</div><span class="muted">${catalogue.length} product${catalogue.length === 1 ? '' : 's'} · listed on the home page and the boutique in this order</span></div><button class="btn" style="min-height:40px;padding:0 20px" data-act="new">Add product</button></div>${rows}`;
+}
+
+function blankProduct() {
+  return { id: '', name: '', brand: '', category: 'skincare', tag: '', image: '', source: '', description: '', price: 0, stock: 0, active: true };
+}
+
+function openEditor(product) {
+  editing = { ...blankProduct(), ...(product || {}) };
+  const isNew = !editing.id;
+  $('records').innerHTML = `
+  <div class="toolbar"><div><div class="eyebrow">${isNew ? 'New product' : 'Editing'}</div><h3 style="margin:4px 0">${esc(editing.name || 'Untitled product')}</h3></div><button class="mini" data-act="cancel">← Back to catalogue</button></div>
+  <div class="editor">
+    <div>
+      <div class="grid2">
+        <div><label for="f-name">Product name</label><input id="f-name" maxlength="160" value="${esc(editing.name)}" required></div>
+        <div><label for="f-brand">Brand</label><input id="f-brand" maxlength="120" value="${esc(editing.brand)}"></div>
+      </div>
+      <div class="grid2">
+        <div><label for="f-category">Category</label><select id="f-category">${['skincare','wellness','haircare','accessories','other'].map(c=>`<option value="${c}"${editing.category===c?' selected':''}>${c.charAt(0).toUpperCase()+c.slice(1)}</option>`).join('')}</select></div>
+        <div><label for="f-tag">Badge <span class="muted">(optional, e.g. Bestseller)</span></label><input id="f-tag" maxlength="40" value="${esc(editing.tag)}"></div>
+      </div>
+      <div class="grid2">
+        <div><label for="f-price">Price (GBP)</label><input id="f-price" type="number" min="0" step="0.01" value="${Number(editing.price || 0).toFixed(2)}"></div>
+        <div><label for="f-stock">Stock</label><input id="f-stock" type="number" min="0" step="1" value="${Number(editing.stock || 0)}"></div>
+      </div>
+      <label for="f-description">Description</label><textarea id="f-description" maxlength="4000">${esc(editing.description)}</textarea>
+      <label for="f-source">Manufacturer link <span class="muted">(optional)</span></label><input id="f-source" maxlength="500" value="${esc(editing.source)}" placeholder="https://">
+      <label for="f-image">Image URL or uploaded image</label><input id="f-image" maxlength="500" value="${esc(editing.image)}" placeholder="https://… or upload below">
+      <div class="dropzone">
+        <input id="f-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/avif">
+        <div class="muted" style="margin-top:8px">PNG, JPEG, WebP, GIF or AVIF · up to 4 MB. The image is stored on the server and served from /media.</div>
+      </div>
+      <label style="margin-top:18px"><input type="checkbox" id="f-active" style="width:auto;margin-right:8px"${editing.active ? ' checked' : ''}>Published — show this product on the site</label>
+      <div class="rec-actions" style="margin-top:20px">
+        <button class="btn" style="min-height:42px;padding:0 22px" data-act="save">${isNew ? 'Create product' : 'Save changes'}</button>
+        ${isNew ? '' : `<button class="mini" data-act="preview" data-id="${esc(editing.id)}">Open product page</button>`}
+      </div>
+      <div class="admin-msg" id="editor-msg" role="alert"></div>
+    </div>
+    <div>
+      <div class="eyebrow">Live preview</div>
+      <div class="preview-card" id="preview"></div>
+      <p class="muted" style="margin-top:12px">This is how the product appears in the boutique grid. Use <b>Preview</b> to open the full product page — drafts are visible to you while signed in.</p>
+    </div>
+  </div>`;
+
+  ['f-name','f-brand','f-category','f-tag','f-price','f-image','f-description','f-stock','f-active'].forEach(id => {
+    $(id).addEventListener('input', renderPreview);
+    $(id).addEventListener('change', renderPreview);
+  });
+  $('f-file').addEventListener('change', uploadImage);
+  renderPreview();
+}
+
+function formValues() {
+  return {
+    name: $('f-name').value.trim(),
+    brand: $('f-brand').value.trim(),
+    category: $('f-category').value,
+    tag: $('f-tag').value.trim(),
+    price: Number($('f-price').value || 0),
+    stock: Number($('f-stock').value || 0),
+    description: $('f-description').value.trim(),
+    source: $('f-source').value.trim(),
+    image: $('f-image').value.trim(),
+    active: $('f-active').checked,
+  };
+}
+
+function renderPreview() {
+  const p = formValues();
+  $('preview').innerHTML = `<img src="${esc(p.image || '/assets/images/shop-still-life.svg')}" alt="" onerror="this.src='/assets/images/shop-still-life.svg'">
+    <div class="preview-body">
+      ${p.tag ? `<span class="pill">${esc(p.tag)}</span>` : ''}
+      <div class="muted">${esc(p.brand || 'Brand')}</div>
+      <b>${esc(p.name || 'Product name')}</b>
+      <div class="price" style="margin:6px 0">${money(p.price)}</div>
+      <div class="muted">${p.stock > 0 ? p.stock + ' in stock' : 'Out of stock'} · ${p.active ? 'published' : 'draft'}</div>
+    </div>`;
+}
+
+async function uploadImage(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  const msg = $('editor-msg');
+  msg.textContent = 'Uploading image…';
+  const body = new FormData();
+  body.append('file', file);
+  try {
+    const data = await api('/api/admin/media', { method: 'POST', body });
+    $('f-image').value = data.url;
+    msg.textContent = 'Image uploaded.';
+    renderPreview();
+  } catch (err) { if (!fail(err)) msg.textContent = err.message; }
+  e.target.value = '';
+}
+
+async function saveProduct() {
+  const msg = $('editor-msg');
+  msg.textContent = 'Saving…';
+  const payload = formValues();
+  try {
+    const isNew = !editing.id;
+    const data = await api(isNew ? '/api/admin/products' : '/api/admin/products/' + encodeURIComponent(editing.id), {
+      method: isNew ? 'POST' : 'PUT',
+      body: JSON.stringify(payload),
+    });
+    editing = data.product;
+    msg.textContent = 'Saved.';
+    await load();
+  } catch (err) { if (!fail(err)) msg.textContent = err.message; }
+}
+
+async function reorder(id, direction) {
+  const index = catalogue.findIndex(p => p.id === id);
+  const target = index + direction;
+  if (index < 0 || target < 0 || target >= catalogue.length) return;
+  const order = catalogue.map(p => p.id);
+  order.splice(target, 0, order.splice(index, 1)[0]);
+  try { catalogue = (await api('/api/admin/products/reorder', { method: 'POST', body: JSON.stringify({ order }) })).products || []; renderCatalogue(); }
+  catch (err) { if (!fail(err)) alert(err.message); }
+}
+
+/* ---------- stock, orders, messages ---------- */
+
+function renderInventory(products) {
+  $('records').innerHTML = '<div class="eyebrow">Live stock</div><p class="muted">Stock is held in Redis and reserved the moment a customer opens Stripe Checkout.</p>' +
+    (products.map(p => `<div class="stock-row"><div><b>${esc(p.name)}</b><div class="muted">${esc(p.brand)} · ${money(p.price)}${p.active ? '' : ' · draft'}</div></div><input id="stock-${esc(p.id)}" type="number" min="0" step="1" value="${p.stock}"><button data-act="stock" data-id="${esc(p.id)}">Save</button></div>`).join('') || '<p>No products yet.</p>');
+}
+
+function renderRecords(rows) {
+  if (!rows.length) { $('records').innerHTML = '<p>Nothing here yet.</p>'; return; }
+  $('records').innerHTML = rows.map(r => {
+    if (tab === 'messages') {
+      const actions = r.status === 'new'
+        ? `<button data-act="status" data-id="${esc(r.id)}" data-status="handled">Mark handled</button>`
+        : `<button data-act="status" data-id="${esc(r.id)}" data-status="new">Mark new</button>`;
+      return `<div class="rec"><div class="rec-head"><b>${esc(r.name)}</b><span><span class="pill ${esc(r.status)}">${esc(r.status)}</span> <span class="muted">${fmtDate(r.created_at)}</span></span></div><p>${esc(r.email)}${r.phone ? ' · ' + esc(r.phone) : ''}</p><p><span class="pill">${esc(r.treatment || 'General')}</span></p><p>${esc(r.message || '')}</p><div class="rec-actions">${actions}<button data-act="remove" data-id="${esc(r.id)}" style="color:#a33">Delete</button></div></div>`;
     }
-    const items=(r.items||[]).map(i=>`${esc(i.name)} × ${i.qty} — ${money((i.price_pence||0)*i.qty/100)}`).join('<br>');
-    let actions='';
-    if(r.payment_status==='paid'&&r.status!=='fulfilled')actions+=`<button onclick="setStatus('${r.id}','fulfilled')">Mark fulfilled</button>`;
-    if(r.payment_status!=='paid'&&!r.inventory_restored)actions+=`<button onclick="setStatus('${r.id}','cancelled')">Cancel & return stock</button>`;
-    actions+=`<button onclick="setStatus('${r.id}','review')">Review</button><button onclick="removeRec('${r.id}')" style="color:#a33">Delete</button>`;
-    return `<div class="rec"><div class="rec-head"><b>${esc(r.name)}</b><span><span class="pill ${esc(r.payment_status)}">${esc(r.payment_status)}</span><span class="pill">${esc(r.status)}</span> <span class="muted">${fmtDate(r.created_at)}</span></span></div><p>${esc(r.email)}${r.phone?' · '+esc(r.phone):''}</p><p>${items}</p><p><b>${money(r.total)}</b></p>${r.notes?`<p>${esc(r.notes)}</p>`:''}<p class="muted">Order ${esc(r.id)}${r.stripe_session_id?' · Stripe '+esc(r.stripe_session_id):''}</p><div class="rec-actions">${actions}</div></div>`;
+    const items = (r.items || []).map(i => `${esc(i.name)} × ${i.qty} — ${money((i.price_pence || 0) * i.qty / 100)}`).join('<br>');
+    let actions = '';
+    if (r.payment_status === 'paid' && r.status !== 'fulfilled') actions += `<button data-act="status" data-id="${esc(r.id)}" data-status="fulfilled">Mark fulfilled</button>`;
+    if (r.payment_status !== 'paid' && !r.inventory_restored) actions += `<button data-act="status" data-id="${esc(r.id)}" data-status="cancelled">Cancel &amp; return stock</button>`;
+    actions += `<button data-act="status" data-id="${esc(r.id)}" data-status="review">Review</button><button data-act="remove" data-id="${esc(r.id)}" style="color:#a33">Delete</button>`;
+    return `<div class="rec"><div class="rec-head"><b>${esc(r.name)}</b><span><span class="pill ${esc(r.payment_status)}">${esc(r.payment_status)}</span><span class="pill">${esc(r.status)}</span> <span class="muted">${fmtDate(r.created_at)}</span></span></div><p>${esc(r.email)}${r.phone ? ' · ' + esc(r.phone) : ''}</p><p>${items}</p><p><b>${money(r.total)}</b></p>${r.notes ? `<p>${esc(r.notes)}</p>` : ''}<p class="muted">Order ${esc(r.id)}${r.stripe_session_id ? ' · Stripe ' + esc(r.stripe_session_id) : ''}</p><div class="rec-actions">${actions}</div></div>`;
   }).join('');
 }
-function renderInventory(products){
-  $('records').innerHTML='<div class="eyebrow">Live Redis inventory</div>'+products.map(p=>`<div class="stock-row"><div><b>${esc(p.name)}</b><div class="muted">${esc(p.brand)} · ${money(p.price)}</div></div><input id="stock-${p.id}" type="number" min="0" step="1" value="${p.stock}"><button onclick="saveStock('${p.id}')">Save</button></div>`).join('');
+
+/* ---------- events ---------- */
+
+$('records').addEventListener('click', async e => {
+  const btn = e.target.closest('[data-act]');
+  if (!btn) return;
+  const id = btn.dataset.id;
+  const act = btn.dataset.act;
+  try {
+    if (act === 'new') return openEditor(null);
+    if (act === 'cancel') return load();
+    if (act === 'save') return saveProduct();
+    if (act === 'edit') return openEditor(catalogue.find(p => p.id === id));
+    if (act === 'preview') return window.open('/product?id=' + encodeURIComponent(id), '_blank', 'noopener');
+    if (act === 'up') return reorder(id, -1);
+    if (act === 'down') return reorder(id, 1);
+    if (act === 'toggle') {
+      const product = catalogue.find(p => p.id === id);
+      await api('/api/admin/products/' + encodeURIComponent(id), { method: 'PATCH', body: JSON.stringify({ active: !product.active }) });
+      return load();
+    }
+    if (act === 'delete') {
+      if (!confirm('Delete this product permanently? Past orders keep their own copy of it.')) return;
+      await api('/api/admin/products/' + encodeURIComponent(id), { method: 'DELETE' });
+      return load();
+    }
+    if (act === 'stock') {
+      const input = $('stock-' + id);
+      await api('/api/admin/inventory/' + encodeURIComponent(id), { method: 'PUT', body: JSON.stringify({ stock: Number(input.value) }) });
+      input.value = Math.max(0, Math.trunc(Number(input.value)));
+      btn.textContent = 'Saved';
+      setTimeout(() => { btn.textContent = 'Save'; }, 1500);
+      return;
+    }
+    if (act === 'status') { await api('/api/admin/' + tab + '/' + encodeURIComponent(id), { method: 'PATCH', body: JSON.stringify({ status: btn.dataset.status }) }); return load(); }
+    if (act === 'remove') {
+      if (!confirm('Delete this record permanently?')) return;
+      await api('/api/admin/' + tab + '/' + encodeURIComponent(id), { method: 'DELETE' });
+      return load();
+    }
+  } catch (err) { if (!fail(err)) alert(err.message); }
+});
+
+document.querySelectorAll('.admin-tabs button').forEach(btn => btn.onclick = () => {
+  document.querySelectorAll('.admin-tabs button').forEach(x => x.classList.remove('active'));
+  btn.classList.add('active');
+  tab = btn.dataset.tab;
+  load();
+});
+
+$('login-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  $('login-msg').textContent = '';
+  try {
+    const data = await api('/api/admin/login', { method: 'POST', body: JSON.stringify({ username: $('a-user').value.trim(), password: $('a-pass').value }) });
+    csrf = data.csrf_token || '';
+    $('a-pass').value = '';
+    await boot();
+  } catch (err) { $('login-msg').textContent = err.message; if (err.status === 503) show('setup-view'); }
+});
+
+$('signout').onclick = async () => {
+  try { await api('/api/admin/logout', { method: 'POST' }); } catch (_) {}
+  csrf = '';
+  show('login-view');
+};
+
+async function boot() {
+  try {
+    const data = await api('/api/admin/session');
+    if (!data.authenticated) { show('login-view'); return; }
+    csrf = data.csrf_token || csrf;
+    $('who').textContent = data.user ? 'Signed in as ' + data.user : '';
+    $('status-line').textContent = `Stripe ${data.stripe_ready ? 'connected' : 'not configured (set APISEC)'} · webhook ${data.stripe_webhook_ready ? 'configured' : 'not configured'}`;
+    show('dash-view');
+    load();
+  } catch (err) { show(err.status === 503 ? 'setup-view' : 'login-view'); }
 }
-window.saveStock=async id=>{const input=$('stock-'+id);const value=Number(input.value);try{await api('/api/admin/inventory/'+encodeURIComponent(id),{method:'PUT',body:JSON.stringify({stock:value})});input.value=Math.max(0,Math.trunc(value))}catch(err){alert(err.message)}};
-window.setStatus=async(id,status)=>{try{await api('/api/admin/'+tab+'/'+id,{method:'PATCH',body:JSON.stringify({status})});load()}catch(err){alert(err.message)}};
-window.removeRec=async id=>{if(!confirm('Delete this record permanently?'))return;try{await api('/api/admin/'+tab+'/'+id,{method:'DELETE'});load()}catch(err){alert(err.message)}};
-document.querySelectorAll('.admin-tabs button').forEach(btn=>btn.onclick=()=>{document.querySelectorAll('.admin-tabs button').forEach(x=>x.classList.remove('active'));btn.classList.add('active');tab=btn.dataset.tab;load()});
-$('login-form').addEventListener('submit',async e=>{e.preventDefault();$('login-msg').textContent='';try{await api('/api/admin/login',{method:'POST',body:JSON.stringify({email:$('a-email').value.trim(),password:$('a-pass').value})});show('dash-view');load()}catch(err){$('login-msg').textContent=err.message;if(err.status===503)show('setup-view')}});
-$('signout').onclick=async()=>{await api('/api/admin/logout',{method:'POST'});show('login-view')};
-(async()=>{try{const data=await api('/api/admin/session');if(data.authenticated){show('dash-view');load()}else show('login-view')}catch(err){show(err.status===503?'setup-view':'login-view')}})();
+boot();
 </script></body></html>

@@ -1,82 +1,138 @@
+"""Diamond Beauty storefront: a single Flask application.
+
+Serves the site, the /admin dashboard and every API route. Product catalogue,
+imagery, stock, orders and booking requests all live in Redis. Stripe Checkout
+is created server-side using the APISEC secret key; the browser never receives
+a secret.
+"""
+
+import base64
+import binascii
+import hashlib
 import hmac
 import json
 import logging
 import os
+import re
 import secrets
 import time
+import unicodedata
 import uuid
 from functools import wraps
 from pathlib import Path
+from urllib.parse import urlparse
 
 import redis
 import stripe
-from flask import Flask, jsonify, request, send_from_directory, session
+from flask import Flask, Response, jsonify, redirect, request, send_from_directory, session
 from werkzeug.middleware.proxy_fix import ProxyFix
+
+from catalogue_seed import SEED_PRODUCTS
 
 BASE_DIR = Path(__file__).resolve().parent
 log = logging.getLogger("diamond")
+logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
+
+
+def env(*names, default=""):
+    """First non-empty value among the given environment variable names."""
+    for name in names:
+        value = os.getenv(name)
+        if value:
+            return value.strip()
+    return default
+
+
+def env_flag(name, default=False):
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+# --- configuration -----------------------------------------------------------
+
+ADMIN_USER = env("ADMINUSER", "ADMIN_USER", "ADMIN_EMAIL")
+ADMIN_PASS = env("ADMINPASS", "ADMIN_PASS", "ADMIN_PASSWORD")
+STRIPE_SECRET_KEY = env("APISEC", "STRIPE_SECRET_KEY")
+STRIPE_PUBLISHABLE_KEY = env("APIPUB", "STRIPE_PUBLISHABLE_KEY")
+STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET", "APIWEBHOOK")
+REDIS_URL = env(
+    "REDIS_URL", "REDIT_URL", "redit_url", "REDIS_PUBLIC_URL",
+    default="redis://localhost:6379/0",
+)
+DEFAULT_STOCK = max(0, int(os.getenv("DEFAULT_STOCK", "0") or 0))
+
+CHECKOUT_TTL_SECONDS = 30 * 60
+MAX_UPLOAD_BYTES = 4 * 1024 * 1024
+MAX_JSON_BYTES = 128 * 1024
+MAX_PRODUCTS = 400
+SESSION_IDLE_SECONDS = 60 * 60 * 8
+LOGIN_MAX_ATTEMPTS = 8
+LOGIN_WINDOW_SECONDS = 15 * 60
+
+ALLOWED_IMAGE_TYPES = {
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/webp": ".webp",
+    "image/gif": ".gif",
+    "image/avif": ".avif",
+}
+CATEGORIES = {"skincare", "wellness", "haircare", "accessories", "other"}
+
+stripe.api_key = STRIPE_SECRET_KEY
+
+if not ADMIN_PASS:
+    log.warning("ADMINPASS is not set - the admin dashboard is disabled.")
 
 app = Flask(__name__, static_folder="assets", static_url_path="/assets")
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
-app.secret_key = os.getenv("SECRET_KEY") or secrets.token_hex(32)
+
+SECRET_KEY = env("SECRET_KEY")
+if not SECRET_KEY:
+    if ADMIN_PASS:
+        # Stable across gunicorn workers and restarts so admin sessions survive,
+        # but still secret. Setting SECRET_KEY explicitly is strongly preferred.
+        SECRET_KEY = hashlib.sha256(f"diamond:{ADMIN_USER}:{ADMIN_PASS}".encode()).hexdigest()
+        log.warning("SECRET_KEY is not set - deriving one from ADMINPASS. Set SECRET_KEY in production.")
+    else:
+        SECRET_KEY = secrets.token_hex(32)
+app.secret_key = SECRET_KEY
+
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
-    SESSION_COOKIE_SECURE=os.getenv("SESSION_COOKIE_SECURE", "0").lower() in {"1", "true", "yes"},
-    PERMANENT_SESSION_LIFETIME=60 * 60 * 12,
-    MAX_CONTENT_LENGTH=64 * 1024,
+    SESSION_COOKIE_SECURE=env_flag("SESSION_COOKIE_SECURE", False),
+    SESSION_COOKIE_NAME="diamond_session",
+    PERMANENT_SESSION_LIFETIME=SESSION_IDLE_SECONDS,
+    MAX_CONTENT_LENGTH=MAX_UPLOAD_BYTES + 512 * 1024,
+    JSON_SORT_KEYS=False,
+    SEND_FILE_MAX_AGE_DEFAULT=3600,
 )
 
-REDIS_URL = (
-    os.getenv("REDIS_URL")
-    or os.getenv("REDIT_URL")
-    or os.getenv("redit_url")
-    or os.getenv("REDIS_PUBLIC_URL")
-    or "redis://localhost:6379/0"
-)
 db = redis.Redis.from_url(
     REDIS_URL,
     decode_responses=True,
     socket_connect_timeout=5,
     socket_timeout=5,
     health_check_interval=30,
+    retry_on_timeout=True,
 )
-
-stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
-STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
-ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "").strip().lower()
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
-DEFAULT_STOCK = max(0, int(os.getenv("DEFAULT_STOCK", "0")))
-CHECKOUT_TTL_SECONDS = 30 * 60
-
-PRODUCTS = {
-    "bandi-hyal": {"name": "Moisturising Concentrate with Hyaluronic Acid", "brand": "BANDI Professional", "price_pence": 1300},
-    "bandi-butter": {"name": "Emollient Cleansing Butter 2-in-1", "brand": "BANDI Professional", "price_pence": 1200},
-    "bandi-emulsion": {"name": "Deeply Moisturising Emulsion", "brand": "BANDI Professional", "price_pence": 1750},
-    "bandi-peptide": {"name": "Rejuvenating Peptide Cream", "brand": "BANDI Professional", "price_pence": 2700},
-    "bandi-spf": {"name": "pre-D3 Advanced Moisturising Cream SPF 50", "brand": "BANDI Professional", "price_pence": 2100},
-    "now-collagen": {"name": "Collagen Peptides Powder, 227 g", "brand": "NOW Foods", "price_pence": 1895},
-    "now-hyaluronic": {"name": "Hyaluronic Acid with MSM, 60 Veg Capsules", "brand": "NOW Foods", "price_pence": 1595},
-    "now-biotin": {"name": "Biotin 5,000 mcg, 60 Veg Capsules", "brand": "NOW Foods", "price_pence": 895},
-    "now-d3k2": {"name": "Vitamin D3 & K2, 120 Capsules", "brand": "NOW Foods", "price_pence": 1195},
-    "now-c1000": {"name": "C-1000, 60 Tablets", "brand": "NOW Foods", "price_pence": 995},
-    "now-omega": {"name": "Omega-3 Fish Oil 1,000 mg, 100 Softgels", "brand": "NOW Foods", "price_pence": 1095},
-    "now-czd": {"name": "C-1000 Zinc & D-3, 100 Veg Capsules", "brand": "NOW Foods", "price_pence": 1695},
-    "now-folic": {"name": "Folic Acid with Vitamin B-12, 250 Tablets", "brand": "NOW Foods", "price_pence": 895},
+PAGES = {
+    "": "index.html",
+    "index": "index.html",
+    "services": "services.html",
+    "about": "about.html",
+    "shop": "shop.html",
+    "product": "product.html",
+    "contact": "contact.html",
+    "checkout": "checkout.html",
+    "checkout-success": "checkout-success.html",
+    "admin": "admin.html",
 }
 
-ALLOWED_PAGES = {
-    "index.html",
-    "services.html",
-    "about.html",
-    "shop.html",
-    "product.html",
-    "contact.html",
-    "checkout.html",
-    "checkout-success.html",
-    "admin.html",
-}
 
+# --- small helpers -----------------------------------------------------------
 
 def _json(value):
     return json.dumps(value, separators=(",", ":"), ensure_ascii=False)
@@ -91,28 +147,284 @@ def _load_json(value, default=None):
         return default
 
 
-def ensure_inventory():
+def clean_text(value, limit):
+    text = str(value if value is not None else "").replace("\x00", "").strip()
+    text = "".join(ch for ch in text if ch == "\n" or ch == "\t" or ord(ch) >= 32)
+    return text[:limit]
+
+
+def valid_email(value):
+    return bool(re.fullmatch(r"[^@\s]+@[^@\s.]+\.[^@\s]{2,}", value or ""))
+
+
+def slugify(value, fallback="product"):
+    text = unicodedata.normalize("NFKD", str(value or "")).encode("ascii", "ignore").decode()
+    text = re.sub(r"[^a-zA-Z0-9]+", "-", text).strip("-").lower()
+    return (text or fallback)[:60]
+
+
+def client_ip():
+    return (request.remote_addr or "unknown")[:64]
+
+
+def rate_limited(bucket, limit, window):
+    """Fixed-window counter in Redis. Fails open if Redis is unavailable."""
+    key = f"rl:{bucket}:{int(time.time() // window)}"
+    try:
+        pipe = db.pipeline()
+        pipe.incr(key)
+        pipe.expire(key, window)
+        count = pipe.execute()[0]
+        return int(count) > limit
+    except redis.RedisError:
+        return False
+
+
+def json_body():
+    if request.content_length and request.content_length > MAX_JSON_BYTES:
+        return None
+    return request.get_json(silent=True) or {}
+
+
+# --- request guards ----------------------------------------------------------
+
+SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+
+
+@app.before_request
+def guard_request():
+    # Stripe signs its own webhook; it is deliberately exempt from origin/CSRF.
+    if request.path == "/api/stripe/webhook":
+        return None
+
+    if request.method not in SAFE_METHODS:
+        origin = request.headers.get("Origin") or request.headers.get("Referer")
+        if origin:
+            parsed = urlparse(origin)
+            if parsed.netloc and parsed.netloc != request.host:
+                return jsonify(error="Cross-origin request rejected."), 403
+
+    if request.path.startswith("/api/admin/") and request.method not in SAFE_METHODS:
+        if request.path not in {"/api/admin/login", "/api/admin/logout"}:
+            token = request.headers.get("X-CSRF-Token", "")
+            expected = session.get("csrf_token", "")
+            if not expected or not hmac.compare_digest(token, expected):
+                return jsonify(error="Invalid or missing CSRF token."), 403
+
+    if request.path.startswith("/api/") and request.path != "/api/stripe/webhook":
+        try:
+            db.ping()
+        except redis.RedisError:
+            log.exception("Redis unavailable")
+            return jsonify(error="Store data service is temporarily unavailable."), 503
+    return None
+
+
+@app.after_request
+def security_headers(response):
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=(), payment=(self)")
+    response.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+    response.headers.setdefault(
+        "Content-Security-Policy",
+        "default-src 'self'; "
+        "base-uri 'self'; "
+        "object-src 'none'; "
+        "frame-ancestors 'none'; "
+        "img-src 'self' data: https:; "
+        "font-src 'self' data: https://fonts.gstatic.com; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "script-src 'self' 'unsafe-inline' https://js.stripe.com; "
+        "connect-src 'self' https://api.stripe.com; "
+        "frame-src https://js.stripe.com https://hooks.stripe.com; "
+        "form-action 'self' https://checkout.stripe.com",
+    )
+    if request.is_secure:
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    if request.path.startswith("/api/") or request.path == "/admin":
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.errorhandler(404)
+def not_found(_err):
+    if request.path.startswith("/api/"):
+        return jsonify(error="Not found."), 404
+    return send_from_directory(BASE_DIR, "index.html"), 404
+
+
+@app.errorhandler(413)
+def too_large(_err):
+    return jsonify(error="Upload is too large."), 413
+
+
+@app.errorhandler(500)
+def server_error(_err):
+    return jsonify(error="Something went wrong."), 500
+
+
+# --- catalogue ---------------------------------------------------------------
+
+def product_key(product_id):
+    return f"product:{product_id}"
+
+
+def seed_catalogue():
+    """Populate the catalogue once, the first time this Redis database is used."""
+    if db.exists("catalogue:seeded"):
+        return
+    if not db.setnx("catalogue:seeded", int(time.time())):
+        return
+    now = int(time.time())
     pipe = db.pipeline()
-    for product_id in PRODUCTS:
-        pipe.setnx(f"stock:{product_id}", DEFAULT_STOCK)
+    for position, seed in enumerate(SEED_PRODUCTS):
+        record = dict(seed)
+        record.update({"active": True, "created_at": now, "updated_at": now, "position": position})
+        pipe.set(product_key(record["id"]), _json(record))
+        pipe.zadd("product:index", {record["id"]: position})
+        pipe.setnx(f"stock:{record['id']}", DEFAULT_STOCK)
     pipe.execute()
+    log.info("Seeded catalogue with %d products", len(SEED_PRODUCTS))
 
 
 def stock_for(product_id):
-    value = db.get(f"stock:{product_id}")
-    return int(value or 0)
+    try:
+        return max(0, int(db.get(f"stock:{product_id}") or 0))
+    except (TypeError, ValueError):
+        return 0
 
 
-def public_product(product_id, product):
+def get_product(product_id):
+    if not product_id:
+        return None
+    return _load_json(db.get(product_key(product_id)))
+
+
+def all_product_ids():
+    return db.zrange("product:index", 0, -1)
+
+
+def list_products(include_inactive=False):
+    ids = all_product_ids()
+    if not ids:
+        return []
+    raw = db.mget([product_key(pid) for pid in ids])
+    stocks = db.mget([f"stock:{pid}" for pid in ids])
+    products = []
+    for record, stock in zip((_load_json(value) for value in raw), stocks):
+        if not record:
+            continue
+        if not include_inactive and not record.get("active", True):
+            continue
+        products.append(public_product(record, stock))
+    return products
+
+
+def public_product(record, stock=None):
+    if stock is None:
+        stock = stock_for(record["id"])
+    try:
+        stock = max(0, int(stock or 0))
+    except (TypeError, ValueError):
+        stock = 0
+    price_pence = int(record.get("price_pence") or 0)
     return {
-        "id": product_id,
-        "name": product["name"],
-        "brand": product["brand"],
-        "price": product["price_pence"] / 100,
-        "price_pence": product["price_pence"],
-        "stock": stock_for(product_id),
+        "id": record["id"],
+        "name": record.get("name", ""),
+        "brand": record.get("brand", ""),
+        "description": record.get("description", ""),
+        "category": record.get("category", "other"),
+        "tag": record.get("tag", ""),
+        "image": record.get("image", ""),
+        "source": record.get("source", ""),
+        "price_pence": price_pence,
+        "price": price_pence / 100,
+        "stock": stock,
+        "active": bool(record.get("active", True)),
+        "position": int(record.get("position", 0)),
+        "updated_at": record.get("updated_at"),
     }
 
+
+IMAGE_PATH_RE = re.compile(r"^/(assets|media)/[A-Za-z0-9._/\-]{1,200}$")
+
+
+def clean_image(value):
+    """Accept a local asset/media path or an absolute https URL; nothing else."""
+    image = clean_text(value, 500)
+    if not image:
+        return ""
+    if IMAGE_PATH_RE.fullmatch(image):
+        return image
+    parsed = urlparse(image)
+    if parsed.scheme == "https" and parsed.netloc:
+        return image
+    raise ValueError("Image must be an uploaded image or an https:// URL.")
+
+
+def clean_source(value):
+    source = clean_text(value, 500)
+    if not source:
+        return ""
+    parsed = urlparse(source)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("Source link must be an http(s) URL.")
+    return source
+
+
+def parse_price(value):
+    """Accept pounds ("12.50") or an explicit pence integer."""
+    if value is None or value == "":
+        raise ValueError("A price is required.")
+    try:
+        pence = int(round(float(value) * 100))
+    except (TypeError, ValueError):
+        raise ValueError("Price must be a number.")
+    if pence < 0 or pence > 1_000_000_00:
+        raise ValueError("Price must be between 0 and 1,000,000.")
+    return pence
+
+
+def parse_stock(value):
+    try:
+        stock = int(value)
+    except (TypeError, ValueError):
+        raise ValueError("Stock must be a whole number.")
+    if stock < 0 or stock > 1_000_000:
+        raise ValueError("Stock must be between 0 and 1,000,000.")
+    return stock
+
+
+def product_from_payload(payload, existing=None):
+    name = clean_text(payload.get("name"), 160)
+    if not name:
+        raise ValueError("A product name is required.")
+
+    category = clean_text(payload.get("category"), 40).lower() or "other"
+    if category not in CATEGORIES:
+        raise ValueError(f"Category must be one of: {', '.join(sorted(CATEGORIES))}.")
+
+    now = int(time.time())
+    record = dict(existing or {})
+    record.update({
+        "name": name,
+        "brand": clean_text(payload.get("brand"), 120),
+        "description": clean_text(payload.get("description"), 4000),
+        "category": category,
+        "tag": clean_text(payload.get("tag"), 40),
+        "image": clean_image(payload.get("image")),
+        "source": clean_source(payload.get("source")),
+        "price_pence": parse_price(payload.get("price", payload.get("price_pence"))),
+        "active": bool(payload.get("active", True)),
+        "updated_at": now,
+    })
+    record.setdefault("created_at", now)
+    return record
+
+
+# --- generic records (orders, messages) --------------------------------------
 
 def save_record(kind, record_id, data):
     ts = float(data.get("created_ts") or time.time())
@@ -123,6 +435,8 @@ def save_record(kind, record_id, data):
 
 
 def get_record(kind, record_id):
+    if not record_id or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", str(record_id)):
+        return None
     return _load_json(db.get(f"{kind}:{record_id}"))
 
 
@@ -152,18 +466,36 @@ def update_record(kind, record_id, changes):
         return data
 
 
+# --- authentication ----------------------------------------------------------
+
+def is_admin():
+    if not session.get("diamond_admin"):
+        return False
+    if session.get("admin_fingerprint") != admin_fingerprint():
+        return False
+    last_seen = float(session.get("last_seen") or 0)
+    if time.time() - last_seen > SESSION_IDLE_SECONDS:
+        session.clear()
+        return False
+    session["last_seen"] = time.time()
+    return True
+
+
+def admin_fingerprint():
+    """Invalidate live sessions when the configured credentials change."""
+    return hashlib.sha256(f"{ADMIN_USER}:{ADMIN_PASS}".encode()).hexdigest()[:32]
+
+
 def admin_required(fn):
     @wraps(fn)
     def wrapper(*args, **kwargs):
-        if not session.get("diamond_admin"):
-            return jsonify(error="admin authentication required"), 401
+        if not is_admin():
+            return jsonify(error="Admin authentication required."), 401
         return fn(*args, **kwargs)
     return wrapper
 
 
-def clean_text(value, limit):
-    return str(value or "").strip()[:limit]
-
+# --- cart and inventory ------------------------------------------------------
 
 def normalise_cart(raw_items):
     if not isinstance(raw_items, list) or not raw_items:
@@ -171,35 +503,39 @@ def normalise_cart(raw_items):
     if len(raw_items) > 40:
         raise ValueError("Too many line items.")
 
-    items = []
-    seen = {}
+    quantities = {}
     for raw in raw_items:
         product_id = clean_text((raw or {}).get("id"), 80)
-        if product_id not in PRODUCTS:
-            raise ValueError(f"Unknown product: {product_id or 'missing id'}")
         try:
             qty = int((raw or {}).get("qty", 1))
         except (TypeError, ValueError):
             raise ValueError("Invalid quantity.")
         if qty < 1 or qty > 25:
             raise ValueError("Quantity must be between 1 and 25.")
-        seen[product_id] = seen.get(product_id, 0) + qty
+        quantities[product_id] = quantities.get(product_id, 0) + qty
 
-    for product_id, qty in seen.items():
-        product = PRODUCTS[product_id]
+    items = []
+    for product_id, qty in quantities.items():
+        record = get_product(product_id)
+        if not record or not record.get("active", True):
+            raise ValueError("One of the items in your bag is no longer available.")
+        if qty > 25:
+            raise ValueError("Quantity must be between 1 and 25.")
+        price_pence = int(record.get("price_pence") or 0)
         items.append({
             "id": product_id,
-            "name": product["name"],
-            "brand": product["brand"],
+            "name": record.get("name", ""),
+            "brand": record.get("brand", ""),
             "qty": qty,
-            "price_pence": product["price_pence"],
-            "line_total_pence": product["price_pence"] * qty,
+            "price_pence": price_pence,
+            "line_total_pence": price_pence * qty,
         })
+    if not items:
+        raise ValueError("Your bag is empty.")
     return items
 
 
 def reserve_inventory(items):
-    ensure_inventory()
     lock = db.lock("inventory:checkout", timeout=12, blocking_timeout=5)
     if not lock.acquire(blocking=True):
         raise RuntimeError("Inventory is busy. Please try again.")
@@ -266,26 +602,32 @@ def order_id_from_stripe_session(stripe_session):
     return metadata.get("order_id") or stripe_session.get("client_reference_id")
 
 
-@app.before_request
-def bootstrap():
-    if request.path.startswith("/api/") and request.path != "/api/stripe/webhook":
-        try:
-            ensure_inventory()
-        except redis.RedisError:
-            log.exception("Redis unavailable")
-            return jsonify(error="Store data service is temporarily unavailable."), 503
-
+# --- pages -------------------------------------------------------------------
 
 @app.get("/")
 def home():
     return send_from_directory(BASE_DIR, "index.html")
 
 
-@app.get("/<path:filename>")
-def page(filename):
-    if filename not in ALLOWED_PAGES:
-        return jsonify(error="not found"), 404
+@app.get("/admin")
+def admin_page():
+    return send_from_directory(BASE_DIR, "admin.html")
+
+
+@app.get("/<page>")
+def page(page):
+    name = page[:-5] if page.endswith(".html") else page
+    filename = PAGES.get(name)
+    if not filename:
+        return not_found(None)
+    if name == "admin" and page.endswith(".html"):
+        return redirect("/admin", code=301)
     return send_from_directory(BASE_DIR, filename)
+
+
+@app.get("/favicon.ico")
+def favicon():
+    return Response(status=204)
 
 
 @app.get("/health")
@@ -295,25 +637,78 @@ def health():
         redis_ok = True
     except redis.RedisError:
         redis_ok = False
-    return jsonify(ok=redis_ok, redis=redis_ok, stripe=bool(stripe.api_key)), (200 if redis_ok else 503)
+    return jsonify(
+        ok=redis_ok,
+        redis=redis_ok,
+        stripe=bool(stripe.api_key),
+        admin_configured=bool(ADMIN_PASS),
+    ), (200 if redis_ok else 503)
+
+
+@app.get("/media/<media_id>")
+def media(media_id):
+    if not re.fullmatch(r"[a-f0-9]{32}", media_id or ""):
+        return not_found(None)
+    meta = db.hgetall(f"media:{media_id}")
+    if not meta:
+        return not_found(None)
+    try:
+        blob = base64.b64decode(meta.get("data") or "")
+    except (binascii.Error, ValueError):
+        return not_found(None)
+    content_type = meta.get("content_type", "application/octet-stream")
+    if content_type not in ALLOWED_IMAGE_TYPES:
+        content_type = "application/octet-stream"
+    response = Response(blob, mimetype=content_type)
+    response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    response.headers["Content-Disposition"] = "inline"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
+# --- public API --------------------------------------------------------------
+
+@app.get("/api/config")
+def public_config():
+    return jsonify(
+        stripe_publishable_key=STRIPE_PUBLISHABLE_KEY,
+        stripe_ready=bool(stripe.api_key),
+        currency="gbp",
+    )
 
 
 @app.get("/api/products")
 def products():
-    return jsonify(products=[public_product(product_id, product) for product_id, product in PRODUCTS.items()])
+    seed_catalogue()
+    return jsonify(products=list_products())
+
+
+@app.get("/api/products/<product_id>")
+def product_detail(product_id):
+    record = get_product(clean_text(product_id, 80))
+    if not record:
+        return jsonify(error="Product not found."), 404
+    if not record.get("active", True) and not is_admin():
+        return jsonify(error="Product not found."), 404
+    return jsonify(product=public_product(record))
 
 
 @app.post("/api/messages")
 def create_message():
-    payload = request.get_json(silent=True) or {}
+    if rate_limited(f"messages:{client_ip()}", 12, 3600):
+        return jsonify(error="Too many messages. Please try again later."), 429
+
+    payload = json_body()
+    if payload is None:
+        return jsonify(error="Request body is too large."), 413
     name = clean_text(payload.get("name"), 120)
     email = clean_text(payload.get("email"), 200)
-    if not name or not email or "@" not in email:
+    if not name or not valid_email(email):
         return jsonify(error="Name and a valid email are required."), 400
 
     message_id = uuid.uuid4().hex
     now = int(time.time())
-    record = {
+    save_record("message", message_id, {
         "id": message_id,
         "name": name,
         "email": email,
@@ -323,8 +718,7 @@ def create_message():
         "status": "new",
         "created_at": now,
         "created_ts": now,
-    }
-    save_record("message", message_id, record)
+    })
     return jsonify(ok=True, id=message_id), 201
 
 
@@ -332,8 +726,12 @@ def create_message():
 def create_checkout():
     if not stripe.api_key:
         return jsonify(error="Stripe is not configured on the server."), 503
+    if rate_limited(f"checkout:{client_ip()}", 20, 3600):
+        return jsonify(error="Too many checkout attempts. Please try again later."), 429
 
-    payload = request.get_json(silent=True) or {}
+    payload = json_body()
+    if payload is None:
+        return jsonify(error="Request body is too large."), 413
     try:
         items = normalise_cart(payload.get("items"))
     except ValueError as exc:
@@ -341,8 +739,12 @@ def create_checkout():
 
     name = clean_text(payload.get("name"), 120)
     email = clean_text(payload.get("email"), 200)
-    if not name or not email or "@" not in email:
+    if not name or not valid_email(email):
         return jsonify(error="Name and a valid email are required."), 400
+
+    total_pence = sum(item["line_total_pence"] for item in items)
+    if total_pence < 30:
+        return jsonify(error="Order total is below the minimum card payment."), 400
 
     shortages = reserve_inventory(items)
     if shortages:
@@ -350,7 +752,6 @@ def create_checkout():
 
     order_id = uuid.uuid4().hex
     now = int(time.time())
-    total_pence = sum(item["line_total_pence"] for item in items)
     order = {
         "id": order_id,
         "name": name,
@@ -381,7 +782,7 @@ def create_checkout():
                     "price_data": {
                         "currency": "gbp",
                         "product_data": {
-                            "name": item["name"],
+                            "name": item["name"][:250] or "Diamond Beauty product",
                             "metadata": {"product_id": item["id"]},
                         },
                         "unit_amount": item["price_pence"],
@@ -391,8 +792,8 @@ def create_checkout():
                 for item in items
             ],
             metadata={"order_id": order_id, "customer_name": name[:100]},
-            success_url=f"{base_url}/checkout-success.html?session_id={{CHECKOUT_SESSION_ID}}",
-            cancel_url=f"{base_url}/checkout.html?cancelled=1",
+            success_url=f"{base_url}/checkout-success?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{base_url}/checkout?cancelled=1",
             expires_at=int(time.time()) + CHECKOUT_TTL_SECONDS,
             allow_promotion_codes=False,
         )
@@ -404,7 +805,7 @@ def create_checkout():
 
     update_record("order", order_id, {"stripe_session_id": checkout.id, "updated_at": int(time.time())})
     db.set(f"stripe_session:{checkout.id}", order_id, ex=60 * 60 * 24 * 7)
-    return jsonify(url=checkout.url, order_id=order_id)
+    return jsonify(url=checkout.url, session_id=checkout.id, order_id=order_id)
 
 
 @app.get("/api/checkout/status")
@@ -464,26 +865,41 @@ def stripe_webhook():
     return jsonify(received=True)
 
 
-@app.post("/api/admin/login")
-def admin_login():
-    if not ADMIN_PASSWORD:
-        return jsonify(error="ADMIN_PASSWORD is not configured."), 503
+# --- admin: session ----------------------------------------------------------
 
-    payload = request.get_json(silent=True) or {}
-    supplied_email = clean_text(payload.get("email"), 200).lower()
-    supplied_password = str(payload.get("password") or "")
-
-    email_ok = not ADMIN_EMAIL or hmac.compare_digest(supplied_email, ADMIN_EMAIL)
-    password_ok = hmac.compare_digest(supplied_password, ADMIN_PASSWORD)
-    if not (email_ok and password_ok):
-        time.sleep(0.25)
-        return jsonify(error="Invalid sign-in."), 401
-
+def start_admin_session(username):
     session.clear()
     session["diamond_admin"] = True
-    session["admin_email"] = supplied_email
+    session["admin_user"] = username
+    session["admin_fingerprint"] = admin_fingerprint()
+    session["csrf_token"] = secrets.token_urlsafe(32)
+    session["last_seen"] = time.time()
     session.permanent = True
-    return jsonify(ok=True)
+    return session["csrf_token"]
+
+
+@app.post("/api/admin/login")
+def admin_login():
+    if not ADMIN_PASS:
+        return jsonify(error="ADMINPASS is not configured on the server."), 503
+    if rate_limited(f"login:{client_ip()}", LOGIN_MAX_ATTEMPTS, LOGIN_WINDOW_SECONDS):
+        return jsonify(error="Too many sign-in attempts. Please wait and try again."), 429
+
+    payload = json_body()
+    if payload is None:
+        return jsonify(error="Request body is too large."), 413
+    supplied_user = clean_text(payload.get("username") or payload.get("user") or payload.get("email"), 200)
+    supplied_pass = str(payload.get("password") or "")[:512]
+
+    user_ok = hmac.compare_digest(supplied_user.casefold(), ADMIN_USER.casefold()) if ADMIN_USER else True
+    pass_ok = hmac.compare_digest(supplied_pass, ADMIN_PASS)
+    if not (user_ok and pass_ok):
+        time.sleep(0.3)
+        log.warning("Failed admin sign-in from %s", client_ip())
+        return jsonify(error="Invalid sign-in."), 401
+
+    token = start_admin_session(supplied_user)
+    return jsonify(ok=True, csrf_token=token, user=supplied_user)
 
 
 @app.post("/api/admin/logout")
@@ -494,7 +910,281 @@ def admin_logout():
 
 @app.get("/api/admin/session")
 def admin_session():
-    return jsonify(authenticated=bool(session.get("diamond_admin")))
+    if not ADMIN_PASS:
+        return jsonify(authenticated=False, configured=False), 503
+    if not is_admin():
+        return jsonify(authenticated=False, configured=True)
+    return jsonify(
+        authenticated=True,
+        configured=True,
+        user=session.get("admin_user", ""),
+        csrf_token=session.get("csrf_token", ""),
+        stripe_ready=bool(stripe.api_key),
+        stripe_publishable_key=STRIPE_PUBLISHABLE_KEY,
+        stripe_webhook_ready=bool(STRIPE_WEBHOOK_SECRET),
+    )
+
+
+# --- admin: catalogue --------------------------------------------------------
+
+@app.get("/api/admin/products")
+@admin_required
+def admin_products():
+    seed_catalogue()
+    return jsonify(products=list_products(include_inactive=True))
+
+
+@app.post("/api/admin/products")
+@admin_required
+def admin_create_product():
+    payload = json_body()
+    if payload is None:
+        return jsonify(error="Request body is too large."), 413
+
+    if db.zcard("product:index") >= MAX_PRODUCTS:
+        return jsonify(error=f"The catalogue is limited to {MAX_PRODUCTS} products."), 409
+
+    try:
+        record = product_from_payload(payload)
+        stock = parse_stock(payload.get("stock", 0))
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 400
+
+    requested_id = slugify(payload.get("id") or record["name"])
+    product_id = requested_id
+    suffix = 2
+    while db.exists(product_key(product_id)):
+        product_id = f"{requested_id}-{suffix}"[:70]
+        suffix += 1
+        if suffix > 50:
+            product_id = f"{requested_id}-{secrets.token_hex(3)}"[:70]
+            break
+
+    record["id"] = product_id
+    position = int(db.zcard("product:index"))
+    record["position"] = position
+
+    pipe = db.pipeline()
+    pipe.set(product_key(product_id), _json(record))
+    pipe.zadd("product:index", {product_id: position})
+    pipe.set(f"stock:{product_id}", stock)
+    pipe.execute()
+    return jsonify(product=public_product(record, stock)), 201
+
+
+@app.put("/api/admin/products/<product_id>")
+@admin_required
+def admin_update_product(product_id):
+    product_id = clean_text(product_id, 80)
+    existing = get_product(product_id)
+    if not existing:
+        return jsonify(error="Product not found."), 404
+
+    payload = json_body()
+    if payload is None:
+        return jsonify(error="Request body is too large."), 413
+    try:
+        record = product_from_payload(payload, existing)
+        stock = parse_stock(payload.get("stock", stock_for(product_id)))
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 400
+
+    record["id"] = product_id
+    pipe = db.pipeline()
+    pipe.set(product_key(product_id), _json(record))
+    pipe.set(f"stock:{product_id}", stock)
+    pipe.execute()
+    return jsonify(product=public_product(record, stock))
+
+
+@app.patch("/api/admin/products/<product_id>")
+@admin_required
+def admin_patch_product(product_id):
+    """Partial update used for quick stock edits and publish/unpublish toggles."""
+    product_id = clean_text(product_id, 80)
+    existing = get_product(product_id)
+    if not existing:
+        return jsonify(error="Product not found."), 404
+
+    payload = json_body()
+    if payload is None:
+        return jsonify(error="Request body is too large."), 413
+
+    stock = None
+    if "stock" in payload:
+        try:
+            stock = parse_stock(payload.get("stock"))
+        except ValueError as exc:
+            return jsonify(error=str(exc)), 400
+    if "active" in payload:
+        existing["active"] = bool(payload.get("active"))
+    if "position" in payload:
+        try:
+            existing["position"] = max(0, int(payload.get("position")))
+        except (TypeError, ValueError):
+            return jsonify(error="Position must be a whole number."), 400
+
+    existing["updated_at"] = int(time.time())
+    pipe = db.pipeline()
+    pipe.set(product_key(product_id), _json(existing))
+    pipe.zadd("product:index", {product_id: existing.get("position", 0)})
+    if stock is not None:
+        pipe.set(f"stock:{product_id}", stock)
+    pipe.execute()
+    return jsonify(product=public_product(existing, stock))
+
+
+@app.delete("/api/admin/products/<product_id>")
+@admin_required
+def admin_delete_product(product_id):
+    product_id = clean_text(product_id, 80)
+    if not get_product(product_id):
+        return jsonify(error="Product not found."), 404
+    pipe = db.pipeline()
+    pipe.delete(product_key(product_id))
+    pipe.delete(f"stock:{product_id}")
+    pipe.zrem("product:index", product_id)
+    pipe.execute()
+    return jsonify(ok=True)
+
+
+@app.post("/api/admin/products/reorder")
+@admin_required
+def admin_reorder_products():
+    payload = json_body()
+    if payload is None:
+        return jsonify(error="Request body is too large."), 413
+    order = payload.get("order")
+    if not isinstance(order, list) or not order:
+        return jsonify(error="An ordered list of product ids is required."), 400
+
+    known = set(all_product_ids())
+    pipe = db.pipeline()
+    for position, raw_id in enumerate(order[:MAX_PRODUCTS]):
+        pid = clean_text(raw_id, 80)
+        if pid not in known:
+            continue
+        record = get_product(pid)
+        if not record:
+            continue
+        record["position"] = position
+        pipe.set(product_key(pid), _json(record))
+        pipe.zadd("product:index", {pid: position})
+    pipe.execute()
+    return jsonify(products=list_products(include_inactive=True))
+
+
+# --- admin: media ------------------------------------------------------------
+
+@app.get("/api/admin/media")
+@admin_required
+def admin_list_media():
+    ids = db.zrevrange("media:index", 0, 199)
+    items = []
+    for media_id in ids:
+        meta = db.hgetall(f"media:{media_id}")
+        if not meta:
+            db.zrem("media:index", media_id)
+            continue
+        items.append({
+            "id": media_id,
+            "url": f"/media/{media_id}",
+            "filename": meta.get("filename", ""),
+            "content_type": meta.get("content_type", ""),
+            "bytes": int(meta.get("bytes") or 0),
+            "created_at": int(meta.get("created_at") or 0),
+        })
+    return jsonify(media=items)
+
+
+@app.post("/api/admin/media")
+@admin_required
+def admin_upload_media():
+    upload = request.files.get("file")
+    if not upload or not upload.filename:
+        return jsonify(error="Choose an image file to upload."), 400
+
+    content_type = (upload.mimetype or "").split(";")[0].strip().lower()
+    if content_type not in ALLOWED_IMAGE_TYPES:
+        return jsonify(error="Images must be PNG, JPEG, WebP, GIF or AVIF."), 415
+
+    blob = upload.read(MAX_UPLOAD_BYTES + 1)
+    if not blob:
+        return jsonify(error="The uploaded file is empty."), 400
+    if len(blob) > MAX_UPLOAD_BYTES:
+        return jsonify(error="Images must be 4 MB or smaller."), 413
+    if not sniff_image(blob, content_type):
+        return jsonify(error="That file does not look like a real image."), 415
+
+    media_id = uuid.uuid4().hex
+    now = int(time.time())
+    filename = clean_text(Path(upload.filename).name, 120)
+    pipe = db.pipeline()
+    pipe.hset(f"media:{media_id}", mapping={
+        "data": base64.b64encode(blob).decode("ascii"),
+        "content_type": content_type,
+        "filename": filename,
+        "bytes": len(blob),
+        "created_at": now,
+    })
+    pipe.zadd("media:index", {media_id: now})
+    pipe.execute()
+    return jsonify(id=media_id, url=f"/media/{media_id}", bytes=len(blob), filename=filename), 201
+
+
+def sniff_image(blob, content_type):
+    """Cheap magic-number check so a mislabelled file cannot be stored as an image."""
+    signatures = {
+        "image/png": [b"\x89PNG\r\n\x1a\n"],
+        "image/jpeg": [b"\xff\xd8\xff"],
+        "image/gif": [b"GIF87a", b"GIF89a"],
+    }
+    if content_type in signatures:
+        return any(blob.startswith(sig) for sig in signatures[content_type])
+    if content_type == "image/webp":
+        return blob[:4] == b"RIFF" and blob[8:12] == b"WEBP"
+    if content_type == "image/avif":
+        return blob[4:8] == b"ftyp"
+    return False
+
+
+@app.delete("/api/admin/media/<media_id>")
+@admin_required
+def admin_delete_media(media_id):
+    if not re.fullmatch(r"[a-f0-9]{32}", media_id or ""):
+        return jsonify(error="Not found."), 404
+    pipe = db.pipeline()
+    pipe.delete(f"media:{media_id}")
+    pipe.zrem("media:index", media_id)
+    pipe.execute()
+    return jsonify(ok=True)
+
+
+# --- admin: inventory, orders, messages --------------------------------------
+
+@app.get("/api/admin/inventory")
+@admin_required
+def admin_inventory():
+    seed_catalogue()
+    return jsonify(products=list_products(include_inactive=True))
+
+
+@app.put("/api/admin/inventory/<product_id>")
+@admin_required
+def admin_set_inventory(product_id):
+    product_id = clean_text(product_id, 80)
+    record = get_product(product_id)
+    if not record:
+        return jsonify(error="Unknown product."), 404
+    payload = json_body()
+    if payload is None:
+        return jsonify(error="Request body is too large."), 413
+    try:
+        stock = parse_stock(payload.get("stock"))
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 400
+    db.set(f"stock:{product_id}", stock)
+    return jsonify(product=public_product(record, stock))
 
 
 @app.get("/api/admin/messages")
@@ -515,7 +1205,9 @@ def admin_update(kind, record_id):
     if kind not in {"messages", "orders"}:
         return jsonify(error="Invalid record type."), 404
     singular = "message" if kind == "messages" else "order"
-    payload = request.get_json(silent=True) or {}
+    payload = json_body()
+    if payload is None:
+        return jsonify(error="Request body is too large."), 413
     status = clean_text(payload.get("status"), 60)
     allowed = {
         "message": {"new", "handled"},
@@ -555,29 +1247,12 @@ def admin_delete(kind, record_id):
     return jsonify(ok=True)
 
 
-@app.get("/api/admin/inventory")
-@admin_required
-def admin_inventory():
-    ensure_inventory()
-    return jsonify(products=[public_product(product_id, product) for product_id, product in PRODUCTS.items()])
-
-
-@app.put("/api/admin/inventory/<product_id>")
-@admin_required
-def admin_set_inventory(product_id):
-    if product_id not in PRODUCTS:
-        return jsonify(error="Unknown product."), 404
-    payload = request.get_json(silent=True) or {}
-    try:
-        stock = int(payload.get("stock"))
-    except (TypeError, ValueError):
-        return jsonify(error="Stock must be a whole number."), 400
-    if stock < 0 or stock > 1_000_000:
-        return jsonify(error="Stock must be between 0 and 1,000,000."), 400
-    db.set(f"stock:{product_id}", stock)
-    return jsonify(product=public_product(product_id, PRODUCTS[product_id]))
+try:
+    seed_catalogue()
+except redis.RedisError:
+    log.warning("Redis is not reachable at start-up; the catalogue will seed on first request.")
 
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "8080"))
-    app.run(host="0.0.0.0", port=port, debug=os.getenv("FLASK_DEBUG") == "1")
+    app.run(host="127.0.0.1" if env_flag("FLASK_DEBUG") else "0.0.0.0", port=port, debug=env_flag("FLASK_DEBUG"))
