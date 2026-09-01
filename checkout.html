@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Checkout | Diamond Beauty</title><link rel="stylesheet" href="assets/css/style.css"></head><body><script src="assets/js/components.js"></script><script>header()</script>
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Checkout | Diamond Beauty</title><link rel="stylesheet" href="/assets/css/style.css"></head><body><script src="/assets/js/components.js"></script><script>header()</script>
 <main class="section"><div class="container">
 <div class="intro"><div class="eyebrow">Secure checkout</div><h2>Complete your <span class="script">order.</span></h2><p>Your bag is checked against live stock and server-side pricing before Stripe opens.</p></div>
 <section class="contact-stage" style="margin-top:40px"><div class="contact-panel" style="max-width:640px;margin:0 auto">
@@ -10,28 +10,32 @@
 <p id="order-error" style="color:#7a2d3a"></p>
 <div class="contact-note"><p>Payment is handled by Stripe. Diamond Beauty never receives or stores your card number.</p><button class="btn" type="submit">Pay securely with Stripe</button></div>
 </form>
-<p style="margin-top:20px"><a href="shop.html">← Return to boutique</a></p>
+<p style="margin-top:20px"><a href="/shop">← Return to boutique</a></p>
 </div></section>
 </div></main>
-<script>footer()</script><script src="assets/js/products.js"></script><script src="assets/js/app.js"></script>
+<script>footer()</script><script src="/assets/js/products.js"></script><script src="/assets/js/app.js"></script>
 <script>
-const rawBag=JSON.parse(localStorage.getItem('diamond-cart')||'[]');
-const bag=rawBag.map(i=>{const p=PRODUCTS.find(x=>x.id===i.id);return p?{id:p.id,name:p.name,qty:i.qty,price:p.price}:null}).filter(Boolean);
+let bag=[];
+function rawBag(){try{const v=JSON.parse(localStorage.getItem('diamond-cart')||'[]');return Array.isArray(v)?v:[]}catch(_){return []}}
+function escapeHtml(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function renderSummary(){
   const total=bag.reduce((a,b)=>a+b.price*b.qty,0);
   document.getElementById('order-summary').innerHTML=bag.length
-    ?'<div class="eyebrow">Your bag</div>'+bag.map(i=>`<div style="display:flex;justify-content:space-between;padding:6px 0"><span>${i.name} × ${i.qty}</span><span>${formatGBP(i.price*i.qty)}</span></div>`).join('')+`<div style="display:flex;justify-content:space-between;padding:12px 0;border-top:1px solid #ddd;margin-top:8px"><b>Estimated total</b><b>${formatGBP(total)}</b></div><p class="legal">Final price and stock are verified by the server.</p>`
-    :'<p>Your bag is empty — <a href="shop.html">visit the boutique</a> to add products.</p>';
+    ?'<div class="eyebrow">Your bag</div>'+bag.map(i=>`<div style="display:flex;justify-content:space-between;padding:6px 0"><span>${escapeHtml(i.name)} × ${i.qty}</span><span>${formatGBP(i.price*i.qty)}</span></div>`).join('')+`<div style="display:flex;justify-content:space-between;padding:12px 0;border-top:1px solid #ddd;margin-top:8px"><b>Estimated total</b><b>${formatGBP(total)}</b></div><p class="legal">Final price and stock are verified by the server.</p>`
+    :'<p>Your bag is empty \u2014 <a href="/shop">visit the boutique</a> to add products.</p>';
 }
-renderSummary();
+productsReady.then(products=>{
+  bag=rawBag().map(i=>{const p=products.find(x=>x.id===i.id);return p?{id:p.id,name:p.name,qty:i.qty,price:p.price}:null}).filter(Boolean);
+  renderSummary();
+});
 if(new URLSearchParams(location.search).get('cancelled'))document.getElementById('order-error').textContent='Payment was cancelled. Your reserved stock will return automatically when the Stripe Checkout Session expires.';
 document.getElementById('order-form').addEventListener('submit',async function(e){
   e.preventDefault();
-  if(!bag.length){document.getElementById('order-error').textContent='Your bag is empty.';return}
-  const btn=this.querySelector('button');
   const error=document.getElementById('order-error');
+  if(!bag.length){error.textContent='Your bag is empty.';return}
+  const btn=this.querySelector('button');
   const val=id=>document.getElementById(id).value.trim();
-  btn.disabled=true;btn.textContent='Opening Stripe…';error.textContent='';
+  btn.disabled=true;btn.textContent='Opening Stripe\u2026';error.textContent='';
   try{
     const res=await fetch('/api/checkout',{
       method:'POST',
@@ -41,9 +45,9 @@ document.getElementById('order-form').addEventListener('submit',async function(e
         items:bag.map(i=>({id:i.id,qty:i.qty}))
       })
     });
-    const data=await res.json();
+    const data=await res.json().catch(()=>({}));
     if(!res.ok){
-      if(data.shortages?.length)throw new Error(data.shortages.map(x=>`${x.name}: ${x.available} available`).join(' · '));
+      if(data.shortages&&data.shortages.length)throw new Error(data.shortages.map(x=>`${x.name}: ${x.available} available`).join(' \u00b7 '));
       throw new Error(data.error||'Checkout could not start.');
     }
     location.assign(data.url);
