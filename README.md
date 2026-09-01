@@ -50,6 +50,9 @@ Legacy names still work as fallbacks: `ADMIN_USER`/`ADMIN_EMAIL`, `ADMIN_PASSWOR
   preview of the boutique card sits beside the form, and **Preview** opens the
   real product page. Unpublished products are hidden from the site but visible to
   a signed-in admin, so a draft can be reviewed before it goes live.
+- **Categories** — create, rename and delete boutique categories, and assign or
+  move products between them from the product editor. Categories that still
+  contain products cannot be deleted until those products are moved or removed.
 - **Images** — upload PNG, JPEG, WebP, GIF or AVIF (up to 4 MB). Uploads are
   stored in Redis and served from `/media/<id>`, so they survive redeploys on
   hosts with an ephemeral filesystem. An https:// image URL can be pasted instead.
@@ -106,7 +109,7 @@ Locally: `stripe listen --forward-to localhost:8080/api/stripe/webhook`.
 | `/media/<id>` | Uploaded product images |
 | `/health` | Liveness. Always 200 while the app is up; the body reports Redis, Stripe and admin state |
 | `/ready` | Readiness. 503 until Redis answers |
-| `/api/products`, `/api/products/<id>`, `/api/config` | Public catalogue |
+| `/api/products`, `/api/products/<id>`, `/api/categories`, `/api/config` | Public catalogue |
 | `/api/messages`, `/api/checkout`, `/api/checkout/status` | Public storefront actions |
 | `/api/stripe/webhook` | Stripe events |
 | `/api/admin/...` | Session, products, media, inventory, orders, messages |

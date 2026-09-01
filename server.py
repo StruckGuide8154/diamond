@@ -67,6 +67,7 @@ CHECKOUT_TTL_SECONDS = 30 * 60
 MAX_UPLOAD_BYTES = 4 * 1024 * 1024
 MAX_JSON_BYTES = 128 * 1024
 MAX_PRODUCTS = 400
+MAX_CATEGORIES = 60
 SESSION_IDLE_SECONDS = 60 * 60 * 8
 LOGIN_MAX_ATTEMPTS = 8
 LOGIN_WINDOW_SECONDS = 15 * 60
@@ -78,7 +79,14 @@ ALLOWED_IMAGE_TYPES = {
     "image/gif": ".gif",
     "image/avif": ".avif",
 }
-CATEGORIES = {"skincare", "wellness", "haircare", "accessories", "other"}
+DEFAULT_CATEGORIES = (
+    ("bandi", "Bandi"),
+    ("skincare", "Skincare"),
+    ("wellness", "Wellness"),
+    ("haircare", "Haircare"),
+    ("accessories", "Accessories"),
+    ("other", "Other"),
+)
 
 stripe.api_key = STRIPE_SECRET_KEY
 
@@ -277,11 +285,77 @@ def product_key(product_id):
     return f"product:{product_id}"
 
 
+def category_key(category_id):
+    return f"category:{category_id}"
+
+
+def seed_categories():
+    """Create the default category list and migrate BANDI products once."""
+    seed_key = "categories:seeded"
+    if not db.exists(seed_key):
+        with db.lock(f"lock:{seed_key}", timeout=15, blocking_timeout=5):
+            if not db.exists(seed_key):
+                pipe = db.pipeline()
+                for position, (category_id, name) in enumerate(DEFAULT_CATEGORIES):
+                    pipe.setnx(category_key(category_id), _json({"id": category_id, "name": name}))
+                    pipe.zadd("category:index", {category_id: position}, nx=True)
+                pipe.set(seed_key, int(time.time()))
+                pipe.execute()
+
+    migration_key = "catalogue:migration:bandi-category:v1"
+    if db.exists(migration_key):
+        return
+    with db.lock(f"lock:{migration_key}", timeout=15, blocking_timeout=5):
+        if db.exists(migration_key):
+            return
+        now = int(time.time())
+        migration = db.pipeline()
+        for product_id in all_product_ids():
+            record = get_product(product_id)
+            if not record:
+                continue
+            if product_id.startswith("bandi-") or "bandi" in record.get("brand", "").lower():
+                record["category"] = "bandi"
+                record["updated_at"] = now
+                migration.set(product_key(product_id), _json(record))
+        migration.set(migration_key, now)
+        migration.execute()
+
+
+def list_categories():
+    ids = db.zrange("category:index", 0, -1)
+    if not ids:
+        return []
+    raw = db.mget([category_key(category_id) for category_id in ids])
+    counts = {}
+    for product_id in all_product_ids():
+        record = get_product(product_id)
+        if record:
+            category_id = record.get("category", "other")
+            counts[category_id] = counts.get(category_id, 0) + 1
+    return [
+        {**record, "product_count": counts.get(record["id"], 0)}
+        for record in (_load_json(value) for value in raw)
+        if record
+    ]
+
+
+def category_exists(category_id):
+    return bool(category_id and db.exists(category_key(category_id)))
+
+
+def category_name(category_id):
+    record = _load_json(db.get(category_key(category_id)), {})
+    return record.get("name") or category_id.replace("-", " ").title()
+
+
 def seed_catalogue():
     """Populate the catalogue once, the first time this Redis database is used."""
     if db.exists("catalogue:seeded"):
+        seed_categories()
         return
     if not db.setnx("catalogue:seeded", int(time.time())):
+        seed_categories()
         return
     now = int(time.time())
     pipe = db.pipeline()
@@ -292,6 +366,7 @@ def seed_catalogue():
         pipe.zadd("product:index", {record["id"]: position})
         pipe.setnx(f"stock:{record['id']}", DEFAULT_STOCK)
     pipe.execute()
+    seed_categories()
     log.info("Seeded catalogue with %d products", len(SEED_PRODUCTS))
 
 
@@ -342,6 +417,7 @@ def public_product(record, stock=None):
         "brand": record.get("brand", ""),
         "description": record.get("description", ""),
         "category": record.get("category", "other"),
+        "category_name": category_name(record.get("category", "other")),
         "tag": record.get("tag", ""),
         "image": record.get("image", ""),
         "source": record.get("source", ""),
@@ -408,9 +484,9 @@ def product_from_payload(payload, existing=None):
     if not name:
         raise ValueError("A product name is required.")
 
-    category = clean_text(payload.get("category"), 40).lower() or "other"
-    if category not in CATEGORIES:
-        raise ValueError(f"Category must be one of: {', '.join(sorted(CATEGORIES))}.")
+    category = slugify(clean_text(payload.get("category"), 60), "other")
+    if not category_exists(category):
+        raise ValueError("Choose an existing category, or create one first.")
 
     now = int(time.time())
     record = dict(existing or {})
@@ -704,6 +780,12 @@ def products():
     return jsonify(products=list_products())
 
 
+@app.get("/api/categories")
+def categories():
+    seed_catalogue()
+    return jsonify(categories=list_categories())
+
+
 @app.get("/api/products/<product_id>")
 def product_detail(product_id):
     record = get_product(clean_text(product_id, 80))
@@ -946,7 +1028,80 @@ def admin_session():
     )
 
 
-# --- admin: catalogue --------------------------------------------------------
+# --- admin: categories and catalogue ----------------------------------------
+
+@app.get("/api/admin/categories")
+@admin_required
+def admin_categories():
+    seed_catalogue()
+    return jsonify(categories=list_categories())
+
+
+@app.post("/api/admin/categories")
+@admin_required
+def admin_create_category():
+    seed_catalogue()
+    payload = json_body()
+    if payload is None:
+        return jsonify(error="Request body is too large."), 413
+    name = clean_text(payload.get("name"), 80)
+    if not name:
+        return jsonify(error="A category name is required."), 400
+    if db.zcard("category:index") >= MAX_CATEGORIES:
+        return jsonify(error=f"The catalogue is limited to {MAX_CATEGORIES} categories."), 409
+
+    category_id = slugify(payload.get("id") or name, "category")
+    if category_exists(category_id):
+        return jsonify(error="A category with this name already exists."), 409
+    record = {"id": category_id, "name": name}
+    position = int(db.zcard("category:index"))
+    pipe = db.pipeline()
+    pipe.set(category_key(category_id), _json(record))
+    pipe.zadd("category:index", {category_id: position})
+    pipe.execute()
+    return jsonify(category={**record, "product_count": 0}), 201
+
+
+@app.put("/api/admin/categories/<category_id>")
+@admin_required
+def admin_update_category(category_id):
+    seed_catalogue()
+    category_id = slugify(clean_text(category_id, 60), "")
+    record = _load_json(db.get(category_key(category_id)))
+    if not record:
+        return jsonify(error="Category not found."), 404
+    payload = json_body()
+    if payload is None:
+        return jsonify(error="Request body is too large."), 413
+    name = clean_text(payload.get("name"), 80)
+    if not name:
+        return jsonify(error="A category name is required."), 400
+    record["name"] = name
+    db.set(category_key(category_id), _json(record))
+    count = next((c["product_count"] for c in list_categories() if c["id"] == category_id), 0)
+    return jsonify(category={**record, "product_count": count})
+
+
+@app.delete("/api/admin/categories/<category_id>")
+@admin_required
+def admin_delete_category(category_id):
+    seed_catalogue()
+    category_id = slugify(clean_text(category_id, 60), "")
+    if not category_exists(category_id):
+        return jsonify(error="Category not found."), 404
+    products_using_category = [
+        product_id for product_id in all_product_ids()
+        if (get_product(product_id) or {}).get("category", "other") == category_id
+    ]
+    if products_using_category:
+        return jsonify(
+            error=f"Move or delete the {len(products_using_category)} product(s) in this category first."
+        ), 409
+    pipe = db.pipeline()
+    pipe.delete(category_key(category_id))
+    pipe.zrem("category:index", category_id)
+    pipe.execute()
+    return jsonify(ok=True)
 
 @app.get("/api/admin/products")
 @admin_required
@@ -958,6 +1113,7 @@ def admin_products():
 @app.post("/api/admin/products")
 @admin_required
 def admin_create_product():
+    seed_catalogue()
     payload = json_body()
     if payload is None:
         return jsonify(error="Request body is too large."), 413
@@ -996,6 +1152,7 @@ def admin_create_product():
 @app.put("/api/admin/products/<product_id>")
 @admin_required
 def admin_update_product(product_id):
+    seed_catalogue()
     product_id = clean_text(product_id, 80)
     existing = get_product(product_id)
     if not existing:

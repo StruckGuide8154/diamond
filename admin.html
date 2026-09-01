@@ -19,7 +19,7 @@ button.mini:hover{border-color:#7a2d3a}
 #admin-bar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
 .stock-row{display:grid;grid-template-columns:1fr 110px 100px;gap:12px;align-items:center;padding:12px 0;border-top:1px solid #eee}
 .stock-row:first-child{border-top:none}
-.stock-row input,.editor input,.editor select,.editor textarea{width:100%;padding:9px;border:1px solid #ccc;border-radius:6px;font:inherit;font-size:14px;background:#fff}
+.stock-row input,.editor input,.editor select,.editor textarea,#new-category{width:100%;padding:9px;border:1px solid #ccc;border-radius:6px;font:inherit;font-size:14px;background:#fff}
 .muted{color:#887;font-size:13px}
 .prod-row{display:grid;grid-template-columns:64px 1fr auto;gap:14px;align-items:center;padding:14px 0;border-top:1px solid #eee}
 .prod-row:first-child{border-top:none}
@@ -63,6 +63,7 @@ button.mini:hover{border-color:#7a2d3a}
   <p class="muted" id="status-line"></p>
   <div class="admin-tabs">
     <button data-tab="catalogue" class="active">Products</button>
+    <button data-tab="categories">Categories</button>
     <button data-tab="inventory">Stock control</button>
     <button data-tab="orders">Orders</button>
     <button data-tab="messages">Booking requests</button>
@@ -76,6 +77,7 @@ const $ = id => document.getElementById(id);
 let tab = 'catalogue';
 let csrf = '';
 let catalogue = [];
+let categories = [];
 let editing = null;
 
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
@@ -99,7 +101,14 @@ function fail(err){ if(err.status===401){show('login-view');return true} return 
 async function load() {
   $('records').textContent = 'Loading…';
   try {
-    if (tab === 'catalogue') { catalogue = (await api('/api/admin/products')).products || []; renderCatalogue(); return; }
+    if (tab === 'catalogue') {
+      const [productData, categoryData] = await Promise.all([api('/api/admin/products'), api('/api/admin/categories')]);
+      catalogue = productData.products || [];
+      categories = categoryData.categories || [];
+      renderCatalogue();
+      return;
+    }
+    if (tab === 'categories') { categories = (await api('/api/admin/categories')).categories || []; renderCategories(); return; }
     if (tab === 'inventory') { catalogue = (await api('/api/admin/inventory')).products || []; renderInventory(catalogue); return; }
     renderRecords((await api('/api/admin/' + tab)).records || []);
   } catch (err) { if (!fail(err)) $('records').textContent = err.message; }
@@ -112,7 +121,7 @@ function renderCatalogue() {
       <img src="${esc(p.image || '/assets/images/shop-still-life.svg')}" alt="">
       <div>
         <b>${esc(p.name)}</b> <span class="pill ${p.active ? 'live' : 'draft'}">${p.active ? 'Live' : 'Draft'}</span>
-        <div class="muted">${esc(p.brand || 'No brand')} · ${esc(p.category)} · ${money(p.price)} · ${p.stock} in stock</div>
+        <div class="muted">${esc(p.brand || 'No brand')} · ${esc(p.category_name || categoryLabel(p.category))} · ${money(p.price)} · ${p.stock} in stock</div>
       </div>
       <div class="rec-actions">
         <button class="mini" data-act="edit" data-id="${esc(p.id)}">Edit</button>
@@ -127,8 +136,22 @@ function renderCatalogue() {
   $('records').innerHTML = `<div class="toolbar"><div><div class="eyebrow">Catalogue</div><span class="muted">${catalogue.length} product${catalogue.length === 1 ? '' : 's'} · listed on the home page and the boutique in this order</span></div><button class="btn" style="min-height:40px;padding:0 20px" data-act="new">Add product</button></div>${rows}`;
 }
 
+function categoryLabel(id) {
+  return categories.find(category => category.id === id)?.name || id;
+}
+
+function renderCategories() {
+  const rows = categories.map(category => `<div class="rec">
+    <div class="rec-head"><div><b>${esc(category.name)}</b><div class="muted">${esc(category.id)} · ${category.product_count} product${category.product_count === 1 ? '' : 's'}</div></div>
+    <div class="rec-actions"><button data-act="cat-rename" data-id="${esc(category.id)}">Rename</button><button data-act="cat-delete" data-id="${esc(category.id)}" style="color:#a33">Delete</button></div></div>
+  </div>`).join('') || '<p>No categories yet.</p>';
+  $('records').innerHTML = `<div class="toolbar"><div><div class="eyebrow">Categories</div><span class="muted">Create and manage the groups shown in the boutique filters.</span></div></div>
+    <div class="grid2" style="align-items:end;margin-bottom:22px"><div><label for="new-category">New category name</label><input id="new-category" maxlength="80" placeholder="e.g. Gift sets"></div><button class="btn" style="min-height:40px" data-act="cat-add">Create category</button></div>
+    <div class="admin-msg" id="category-msg" role="alert"></div>${rows}`;
+}
+
 function blankProduct() {
-  return { id: '', name: '', brand: '', category: 'skincare', tag: '', image: '', source: '', description: '', price: 0, stock: 0, active: true };
+  return { id: '', name: '', brand: '', category: categories.find(c => c.id === 'other')?.id || categories[0]?.id || '', tag: '', image: '', source: '', description: '', price: 0, stock: 0, active: true };
 }
 
 function openEditor(product) {
@@ -143,7 +166,7 @@ function openEditor(product) {
         <div><label for="f-brand">Brand</label><input id="f-brand" maxlength="120" value="${esc(editing.brand)}"></div>
       </div>
       <div class="grid2">
-        <div><label for="f-category">Category</label><select id="f-category">${['skincare','wellness','haircare','accessories','other'].map(c=>`<option value="${c}"${editing.category===c?' selected':''}>${c.charAt(0).toUpperCase()+c.slice(1)}</option>`).join('')}</select></div>
+        <div><label for="f-category">Category</label><select id="f-category">${categories.map(c=>`<option value="${esc(c.id)}"${editing.category===c.id?' selected':''}>${esc(c.name)}</option>`).join('')}</select></div>
         <div><label for="f-tag">Badge <span class="muted">(optional, e.g. Bestseller)</span></label><input id="f-tag" maxlength="40" value="${esc(editing.tag)}"></div>
       </div>
       <div class="grid2">
@@ -281,6 +304,27 @@ $('records').addEventListener('click', async e => {
   const id = btn.dataset.id;
   const act = btn.dataset.act;
   try {
+    if (act === 'cat-add') {
+      const input = $('new-category');
+      const msg = $('category-msg');
+      if (!input.value.trim()) { msg.textContent = 'Enter a category name.'; return; }
+      await api('/api/admin/categories', { method: 'POST', body: JSON.stringify({ name: input.value.trim() }) });
+      return load();
+    }
+    if (act === 'cat-rename') {
+      const category = categories.find(c => c.id === id);
+      const name = prompt('Category name', category?.name || '');
+      if (name === null) return;
+      if (!name.trim()) { alert('Enter a category name.'); return; }
+      await api('/api/admin/categories/' + encodeURIComponent(id), { method: 'PUT', body: JSON.stringify({ name: name.trim() }) });
+      return load();
+    }
+    if (act === 'cat-delete') {
+      const category = categories.find(c => c.id === id);
+      if (!confirm(`Delete the “${category?.name || id}” category?`)) return;
+      await api('/api/admin/categories/' + encodeURIComponent(id), { method: 'DELETE' });
+      return load();
+    }
     if (act === 'new') return openEditor(null);
     if (act === 'cancel') return load();
     if (act === 'save') return saveProduct();

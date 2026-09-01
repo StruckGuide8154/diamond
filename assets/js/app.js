@@ -95,7 +95,7 @@ function renderFilters(shown) {
   if (!bar) return;
   const categories = [...new Set(shown.map(p => p.category).filter(Boolean))].sort();
   bar.innerHTML = ['all', ...categories].map((cat, i) =>
-    `<button class="filter${i === 0 ? ' active' : ''}" data-filter="${esc(cat)}">${esc(cat === 'all' ? 'All' : cat.charAt(0).toUpperCase() + cat.slice(1))}</button>`
+    `<button class="filter${i === 0 ? ' active' : ''}" data-filter="${esc(cat)}">${esc(cat === 'all' ? 'All' : shown.find(p => p.category === cat)?.category_name || cat.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()))}</button>`
   ).join('');
   bar.querySelectorAll('.filter').forEach(b => {
     b.onclick = () => {
