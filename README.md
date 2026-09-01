@@ -104,7 +104,8 @@ Locally: `stripe listen --forward-to localhost:8080/api/stripe/webhook`.
 | `/`, `/services`, `/about`, `/shop`, `/product`, `/contact`, `/checkout`, `/checkout-success` | Site pages |
 | `/admin` | Admin dashboard |
 | `/media/<id>` | Uploaded product images |
-| `/health` | Redis, Stripe and admin readiness |
+| `/health` | Liveness. Always 200 while the app is up; the body reports Redis, Stripe and admin state |
+| `/ready` | Readiness. 503 until Redis answers |
 | `/api/products`, `/api/products/<id>`, `/api/config` | Public catalogue |
 | `/api/messages`, `/api/checkout`, `/api/checkout/status` | Public storefront actions |
 | `/api/stripe/webhook` | Stripe events |

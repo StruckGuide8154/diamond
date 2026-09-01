@@ -163,6 +163,14 @@ def slugify(value, fallback="product"):
     return (text or fallback)[:60]
 
 
+def redis_ok():
+    try:
+        db.ping()
+        return True
+    except redis.RedisError:
+        return False
+
+
 def client_ip():
     return (request.remote_addr or "unknown")[:64]
 
@@ -212,10 +220,8 @@ def guard_request():
                 return jsonify(error="Invalid or missing CSRF token."), 403
 
     if request.path.startswith("/api/") and request.path != "/api/stripe/webhook":
-        try:
-            db.ping()
-        except redis.RedisError:
-            log.exception("Redis unavailable")
+        if not redis_ok():
+            log.warning("Redis unavailable for %s", request.path)
             return jsonify(error="Store data service is temporarily unavailable."), 503
     return None
 
@@ -632,17 +638,32 @@ def favicon():
 
 @app.get("/health")
 def health():
-    try:
-        db.ping()
-        redis_ok = True
-    except redis.RedisError:
-        redis_ok = False
+    """Liveness check for the platform.
+
+    This deliberately stays 200 while Redis is unreachable: the process is up
+    and serving, and failing the platform health check would take the whole
+    deployment down (and roll it back) over a dependency that may simply be
+    starting up. Redis state is reported in the body, and /ready is the strict
+    check for anything that needs the store to be usable.
+    """
     return jsonify(
-        ok=redis_ok,
-        redis=redis_ok,
+        ok=True,
+        redis=redis_ok(),
         stripe=bool(stripe.api_key),
         admin_configured=bool(ADMIN_PASS),
-    ), (200 if redis_ok else 503)
+    )
+
+
+@app.get("/ready")
+def ready():
+    """Readiness check: 503 until Redis answers."""
+    ok = redis_ok()
+    return jsonify(
+        ok=ok,
+        redis=ok,
+        stripe=bool(stripe.api_key),
+        admin_configured=bool(ADMIN_PASS),
+    ), (200 if ok else 503)
 
 
 @app.get("/media/<media_id>")
