@@ -18,6 +18,7 @@ import secrets
 import time
 import unicodedata
 import uuid
+from datetime import date
 from functools import wraps
 from pathlib import Path
 from urllib.parse import urlparse
@@ -63,7 +64,10 @@ REDIS_URL = env(
 )
 DEFAULT_STOCK = max(0, int(os.getenv("DEFAULT_STOCK", "0") or 0))
 
-CHECKOUT_TTL_SECONDS = 30 * 60
+# Stripe rejects expires_at below 30 minutes from creation. Asking for exactly
+# the minimum races network latency and container clock drift, so leave slack.
+CHECKOUT_TTL_SECONDS = 35 * 60
+COLLECTION_MAX_DAYS = 90
 MAX_UPLOAD_BYTES = 4 * 1024 * 1024
 MAX_JSON_BYTES = 128 * 1024
 MAX_PRODUCTS = 400
@@ -163,6 +167,75 @@ def clean_text(value, limit):
 
 def valid_email(value):
     return bool(re.fullmatch(r"[^@\s]+@[^@\s.]+\.[^@\s]{2,}", value or ""))
+
+
+def valid_uk_postcode(value):
+    """Deliberately loose: correct shape, no attempt to prove the postcode exists."""
+    compact = re.sub(r"\s+", "", (value or "").upper())
+    return bool(re.fullmatch(r"[A-Z]{1,2}\d[A-Z\d]?\d[A-Z]{2}", compact))
+
+
+def format_postcode(value):
+    compact = re.sub(r"\s+", "", (value or "").upper())
+    return f"{compact[:-3]} {compact[-3:]}" if len(compact) > 3 else compact
+
+
+def parse_fulfilment(payload):
+    """Validate the delivery/collection half of a checkout payload.
+
+    Returns the fields to merge into the order record. Raises ValueError with a
+    customer-facing message when something is missing or malformed.
+    """
+    method = clean_text(payload.get("fulfilment"), 20).lower()
+    if method not in {"delivery", "collection"}:
+        raise ValueError("Choose delivery or collection.")
+
+    if method == "delivery":
+        line1 = clean_text(payload.get("address1"), 120)
+        city = clean_text(payload.get("city"), 80)
+        postcode = clean_text(payload.get("postcode"), 12)
+        if not line1:
+            raise ValueError("A delivery address is required.")
+        if not city:
+            raise ValueError("A town or city is required for delivery.")
+        if not valid_uk_postcode(postcode):
+            raise ValueError("Enter a valid UK postcode for delivery.")
+        return {
+            "fulfilment": "delivery",
+            "address1": line1,
+            "address2": clean_text(payload.get("address2"), 120),
+            "city": city,
+            "county": clean_text(payload.get("county"), 80),
+            "postcode": format_postcode(postcode),
+            "collection_date": "",
+            "collection_ack": False,
+        }
+
+    raw_date = clean_text(payload.get("collection_date"), 10)
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", raw_date):
+        raise ValueError("Choose a collection date.")
+    try:
+        chosen = date.fromisoformat(raw_date)
+    except ValueError:
+        raise ValueError("Choose a valid collection date.")
+    today = date.today()
+    if chosen < today:
+        raise ValueError("The collection date cannot be in the past.")
+    if (chosen - today).days > COLLECTION_MAX_DAYS:
+        raise ValueError(f"Collection dates are limited to {COLLECTION_MAX_DAYS} days ahead.")
+    if not payload.get("collection_ack"):
+        raise ValueError("Please confirm you understand how collection works.")
+
+    return {
+        "fulfilment": "collection",
+        "address1": "",
+        "address2": "",
+        "city": "",
+        "county": "",
+        "postcode": "",
+        "collection_date": chosen.isoformat(),
+        "collection_ack": True,
+    }
 
 
 def slugify(value, fallback="product"):
@@ -845,6 +918,11 @@ def create_checkout():
     if not name or not valid_email(email):
         return jsonify(error="Name and a valid email are required."), 400
 
+    try:
+        fulfilment = parse_fulfilment(payload)
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 400
+
     total_pence = sum(item["line_total_pence"] for item in items)
     if total_pence < 30:
         return jsonify(error="Order total is below the minimum card payment."), 400
@@ -872,6 +950,7 @@ def create_checkout():
         "created_ts": now,
         "updated_at": now,
     }
+    order.update(fulfilment)
     save_record("order", order_id, order)
 
     base_url = request.url_root.rstrip("/")
@@ -894,7 +973,16 @@ def create_checkout():
                 }
                 for item in items
             ],
-            metadata={"order_id": order_id, "customer_name": name[:100]},
+            metadata={
+                "order_id": order_id,
+                "customer_name": name[:100],
+                "fulfilment": fulfilment["fulfilment"],
+                "collection_date": fulfilment["collection_date"],
+                "ship_to": ", ".join(part for part in (
+                    fulfilment["address1"], fulfilment["address2"],
+                    fulfilment["city"], fulfilment["county"], fulfilment["postcode"],
+                ) if part)[:500],
+            },
             success_url=f"{base_url}/checkout-success?session_id={{CHECKOUT_SESSION_ID}}",
             cancel_url=f"{base_url}/checkout?cancelled=1",
             expires_at=int(time.time()) + CHECKOUT_TTL_SECONDS,
@@ -927,6 +1015,8 @@ def checkout_status():
         payment_status=order.get("payment_status"),
         total=order.get("total"),
         currency=order.get("currency", "gbp"),
+        fulfilment=order.get("fulfilment", "delivery"),
+        collection_date=order.get("collection_date", ""),
     )
 
 
@@ -1389,7 +1479,10 @@ def admin_update(kind, record_id):
     status = clean_text(payload.get("status"), 60)
     allowed = {
         "message": {"new", "handled"},
-        "order": {"fulfilled", "cancelled", "review"},
+        "order": {
+            "fulfilled", "cancelled", "review",
+            "packing", "ready_for_collection", "collected", "dispatched",
+        },
     }
     if status not in allowed[singular]:
         return jsonify(error="Invalid status."), 400
@@ -1399,12 +1492,22 @@ def admin_update(kind, record_id):
         return jsonify(error="Record not found."), 404
 
     if singular == "order":
-        if status == "fulfilled" and current.get("payment_status") != "paid":
-            return jsonify(error="Only Stripe-paid orders can be marked fulfilled."), 409
+        # Every forward step implies the money has actually landed.
+        progress = {"packing", "ready_for_collection", "collected", "dispatched", "fulfilled"}
+        if status in progress and current.get("payment_status") != "paid":
+            return jsonify(error="Only Stripe-paid orders can be moved through fulfilment."), 409
         if status == "cancelled" and current.get("payment_status") == "paid":
             return jsonify(error="Paid orders must be refunded in Stripe before cancellation."), 409
+        method = current.get("fulfilment") or "delivery"
+        if status in {"ready_for_collection", "collected"} and method != "collection":
+            return jsonify(error="That status only applies to collection orders."), 409
+        if status == "dispatched" and method != "delivery":
+            return jsonify(error="That status only applies to delivery orders."), 409
 
-    record = update_record(singular, record_id, {"status": status, "updated_at": int(time.time())})
+    changes = {"status": status, "updated_at": int(time.time())}
+    if singular == "order" and status == "ready_for_collection":
+        changes["ready_at"] = int(time.time())
+    record = update_record(singular, record_id, changes)
     if singular == "order" and status == "cancelled":
         record = restore_inventory(record)
     return jsonify(record=record)

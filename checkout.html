@@ -1,58 +1,168 @@
 <!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Checkout | Diamond Beauty</title><link rel="stylesheet" href="/assets/css/style.css"></head><body><script src="/assets/js/components.js"></script><script>header()</script>
-<main class="section"><div class="container">
+<main class="checkout-page"><div class="container">
+
 <div class="intro"><div class="eyebrow">Secure checkout</div><h2>Complete your <span class="script">order.</span></h2><p>Your bag is checked against live stock and server-side pricing before Stripe opens.</p></div>
-<section class="contact-stage" style="margin-top:40px"><div class="contact-panel" style="max-width:640px;margin:0 auto">
-<div id="order-summary"></div>
-<form class="form" id="order-form" style="margin-top:24px">
-<div class="form-row"><div><label for="o-name">Your name</label><input id="o-name" placeholder="Full name" required></div><div><label for="o-email">Email address</label><input id="o-email" type="email" placeholder="you@example.com" required></div></div>
-<label for="o-phone">Telephone</label><input id="o-phone" type="tel" placeholder="Your number">
-<label for="o-notes">Notes</label><textarea id="o-notes" placeholder="Collection, delivery or anything we should know"></textarea>
-<p id="order-error" style="color:#7a2d3a"></p>
-<div class="contact-note"><p>Payment is handled by Stripe. Diamond Beauty never receives or stores your card number.</p><button class="btn" type="submit">Pay securely with Stripe</button></div>
+
+<form class="checkout-layout checkout-form" id="order-form" novalidate>
+
+  <div>
+    <section class="checkout-card">
+      <div class="checkout-step"><span>01</span><h3>Your details</h3></div>
+      <div class="field-pair">
+        <div class="field"><label for="o-name">Full name</label><input id="o-name" name="name" autocomplete="name" placeholder="Jane Smith" required></div>
+        <div class="field"><label for="o-email">Email address</label><input id="o-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required></div>
+      </div>
+      <div class="field"><label for="o-phone">Telephone</label><input id="o-phone" name="tel" type="tel" autocomplete="tel" placeholder="07508 775 775"><p class="field-hint">So we can reach you about this order.</p></div>
+    </section>
+
+    <section class="checkout-card">
+      <div class="checkout-step"><span>02</span><h3>Delivery or collection</h3></div>
+      <div class="choice-grid">
+        <label class="choice">
+          <input type="radio" name="fulfilment" value="delivery" checked>
+          <div class="choice-body"><h4>Deliver to me</h4><p>Posted to your UK address once your order has been packed.</p></div>
+          <span class="choice-tick"></span>
+        </label>
+        <label class="choice">
+          <input type="radio" name="fulfilment" value="collection">
+          <div class="choice-body"><h4>Collect in clinic</h4><p>Pick up from 159 Front Street, Arnold, on a date that suits you.</p></div>
+          <span class="choice-tick"></span>
+        </label>
+      </div>
+
+      <div id="delivery-fields" style="margin-top:26px">
+        <div class="field"><label for="o-address1">Address line 1</label><input id="o-address1" autocomplete="address-line1" placeholder="159 Front Street"></div>
+        <div class="field"><label for="o-address2">Address line 2 <span style="text-transform:none;letter-spacing:0">(optional)</span></label><input id="o-address2" autocomplete="address-line2" placeholder="Flat, building, company"></div>
+        <div class="field-pair">
+          <div class="field"><label for="o-city">Town or city</label><input id="o-city" autocomplete="address-level2" placeholder="Nottingham"></div>
+          <div class="field"><label for="o-county">County <span style="text-transform:none;letter-spacing:0">(optional)</span></label><input id="o-county" autocomplete="address-level1" placeholder="Nottinghamshire"></div>
+        </div>
+        <div class="field" style="max-width:220px"><label for="o-postcode">Postcode</label><input id="o-postcode" autocomplete="postal-code" placeholder="NG5 7EE" spellcheck="false"></div>
+      </div>
+
+      <div id="collection-fields" hidden style="margin-top:26px">
+        <div class="field" style="max-width:260px"><label for="o-collection-date">Preferred collection date</label><input id="o-collection-date" type="date"><p class="field-hint">Monday–Friday 10:00–18:00, Saturday 10:00–16:00.</p></div>
+        <label class="ack">
+          <input type="checkbox" id="o-collection-ack">
+          <p>I understand my order is <strong>not ready straight away</strong>. Diamond Beauty will email me at the address above when my order has been packed and is ready to collect, and again to confirm my collection date. I will wait for that email before travelling to the clinic.</p>
+        </label>
+      </div>
+    </section>
+
+    <section class="checkout-card">
+      <div class="checkout-step"><span>03</span><h3>Anything else?</h3></div>
+      <div class="field"><label for="o-notes">Notes for the clinic <span style="text-transform:none;letter-spacing:0">(optional)</span></label><textarea id="o-notes" placeholder="Allergies, preferred contact time, gift wrapping…"></textarea></div>
+    </section>
+  </div>
+
+  <aside class="checkout-card checkout-summary">
+    <div class="checkout-step"><span>&#9670;</span><h3>Your bag</h3></div>
+    <div id="order-summary"></div>
+    <div class="sum-method" id="summary-method"></div>
+    <p class="form-error" id="order-error" role="alert" aria-live="polite"></p>
+    <button class="btn checkout-submit" type="submit" id="submit-btn" style="margin-top:22px">Pay securely with Stripe</button>
+    <p class="checkout-trust">Payment is handled by Stripe.<br>Diamond Beauty never receives or stores your card number.</p>
+    <p style="margin-top:18px;text-align:center"><a href="/shop" style="font-size:12px;color:var(--muted)">&larr; Return to boutique</a></p>
+  </aside>
+
 </form>
-<p style="margin-top:20px"><a href="/shop">← Return to boutique</a></p>
-</div></section>
 </div></main>
 <script>footer()</script><script src="/assets/js/products.js"></script><script src="/assets/js/app.js"></script>
 <script>
 let bag=[];
+const $=id=>document.getElementById(id);
+const val=id=>($(id).value||'').trim();
 function rawBag(){try{const v=JSON.parse(localStorage.getItem('diamond-cart')||'[]');return Array.isArray(v)?v:[]}catch(_){return []}}
 function escapeHtml(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function method(){return document.querySelector('input[name=fulfilment]:checked').value}
+
 function renderSummary(){
   const total=bag.reduce((a,b)=>a+b.price*b.qty,0);
-  document.getElementById('order-summary').innerHTML=bag.length
-    ?'<div class="eyebrow">Your bag</div>'+bag.map(i=>`<div style="display:flex;justify-content:space-between;padding:6px 0"><span>${escapeHtml(i.name)} × ${i.qty}</span><span>${formatGBP(i.price*i.qty)}</span></div>`).join('')+`<div style="display:flex;justify-content:space-between;padding:12px 0;border-top:1px solid #ddd;margin-top:8px"><b>Estimated total</b><b>${formatGBP(total)}</b></div><p class="legal">Final price and stock are verified by the server.</p>`
-    :'<p>Your bag is empty \u2014 <a href="/shop">visit the boutique</a> to add products.</p>';
+  $('order-summary').innerHTML=bag.length
+    ?bag.map(i=>`<div class="sum-line"><span>${escapeHtml(i.name)} &times; ${i.qty}</span><span>${formatGBP(i.price*i.qty)}</span></div>`).join('')
+      +`<div class="sum-total"><b>Estimated total</b><b>${formatGBP(total)}</b></div>`
+      +'<p class="legal" style="margin-top:10px">Final price and stock are verified by the server.</p>'
+    :'<p>Your bag is empty &mdash; <a href="/shop">visit the boutique</a> to add products.</p>';
 }
+
+function renderMethod(){
+  const collection=method()==='collection';
+  $('delivery-fields').hidden=collection;
+  $('collection-fields').hidden=!collection;
+  // Only the visible half is required, so the browser never blocks on a hidden field.
+  ['o-address1','o-city','o-postcode'].forEach(id=>$(id).required=!collection);
+  $('o-collection-date').required=collection;
+  $('o-collection-ack').required=collection;
+  const d=val('o-collection-date');
+  $('summary-method').innerHTML=collection
+    ?`<b>Collection</b> from 159 Front Street, Arnold${d?` on ${escapeHtml(d)}`:''}.<br>We email you when it is ready.`
+    :'<b>Delivery</b> to your UK address once packed.';
+}
+
+// Collection can be booked from today up to 90 days out - matches COLLECTION_MAX_DAYS.
+(function initDates(){
+  const el=$('o-collection-date');
+  const iso=d=>d.toISOString().slice(0,10);
+  const today=new Date();
+  el.min=iso(today);
+  el.max=iso(new Date(today.getTime()+90*864e5));
+})();
+
 productsReady.then(products=>{
   bag=rawBag().map(i=>{const p=products.find(x=>x.id===i.id);return p?{id:p.id,name:p.name,qty:i.qty,price:p.price}:null}).filter(Boolean);
   renderSummary();
 });
-if(new URLSearchParams(location.search).get('cancelled'))document.getElementById('order-error').textContent='Payment was cancelled. Your reserved stock will return automatically when the Stripe Checkout Session expires.';
-document.getElementById('order-form').addEventListener('submit',async function(e){
+
+document.querySelectorAll('input[name=fulfilment]').forEach(r=>r.addEventListener('change',renderMethod));
+$('o-collection-date').addEventListener('change',renderMethod);
+renderMethod();
+
+if(new URLSearchParams(location.search).get('cancelled'))
+  $('order-error').textContent='Payment was cancelled. Your reserved stock returns automatically when the Stripe Checkout Session expires.';
+
+$('order-form').addEventListener('submit',async function(e){
   e.preventDefault();
-  const error=document.getElementById('order-error');
+  const error=$('order-error');
+  const btn=$('submit-btn');
+  error.textContent='';
   if(!bag.length){error.textContent='Your bag is empty.';return}
-  const btn=this.querySelector('button');
-  const val=id=>document.getElementById(id).value.trim();
-  btn.disabled=true;btn.textContent='Opening Stripe\u2026';error.textContent='';
+
+  const collection=method();
+  const body={
+    name:val('o-name'),email:val('o-email'),phone:val('o-phone'),notes:val('o-notes'),
+    fulfilment:collection,
+    items:bag.map(i=>({id:i.id,qty:i.qty}))
+  };
+  if(collection==='delivery'){
+    Object.assign(body,{
+      address1:val('o-address1'),address2:val('o-address2'),
+      city:val('o-city'),county:val('o-county'),postcode:val('o-postcode')
+    });
+  }else{
+    body.collection_date=val('o-collection-date');
+    body.collection_ack=$('o-collection-ack').checked;
+  }
+
+  // Let the browser surface its own messages on the visible half of the form.
+  if(!this.checkValidity()){this.reportValidity();return}
+
+  btn.disabled=true;btn.textContent='Opening Stripe…';
   try{
     const res=await fetch('/api/checkout',{
       method:'POST',
       headers:{'Content-Type':'application/json','Accept':'application/json'},
-      body:JSON.stringify({
-        name:val('o-name'),email:val('o-email'),phone:val('o-phone'),notes:val('o-notes'),
-        items:bag.map(i=>({id:i.id,qty:i.qty}))
-      })
+      body:JSON.stringify(body)
     });
     const data=await res.json().catch(()=>({}));
     if(!res.ok){
-      if(data.shortages&&data.shortages.length)throw new Error(data.shortages.map(x=>`${x.name}: ${x.available} available`).join(' \u00b7 '));
+      if(data.shortages&&data.shortages.length)throw new Error(data.shortages.map(x=>`${x.name}: ${x.available} available`).join(' · '));
       throw new Error(data.error||'Checkout could not start.');
     }
     location.assign(data.url);
   }catch(err){
-    btn.disabled=false;btn.textContent='Pay securely with Stripe';error.textContent=err.message||'Checkout could not start.';
+    btn.disabled=false;btn.textContent='Pay securely with Stripe';
+    error.textContent=err.message||'Checkout could not start.';
+    error.scrollIntoView({block:'center',behavior:'smooth'});
   }
 });
 </script></body></html>

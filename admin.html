@@ -12,9 +12,20 @@
 .pill{display:inline-block;font-size:12px;padding:2px 10px;border-radius:20px;background:#f3e8dd;margin-right:8px}
 .pill.new,.pill.paid,.pill.live{background:#7a2d3a;color:#fff}
 .pill.draft{background:#ddd;color:#333}
+.pill.pending,.pill.expired,.pill.failed{background:#f3ded9;color:#8c2f3f}
+.pill.ready_for_collection{background:#2f6b4f;color:#fff}
+.pill.dispatched,.pill.collected,.pill.fulfilled{background:#4a5f7a;color:#fff}
+.pill.packing{background:#8a6d3b;color:#fff}
+.pill.collection{background:#efe4f0;color:#5b3a63}
+.pill.delivery{background:#e2ecf4;color:#2f4f6b}
+.fulfil-box{background:#faf6f2;border:1px solid #eee3da;border-left:3px solid #7a2d3a;border-radius:0 6px 6px 0;padding:12px 14px;margin:10px 0}
+.fulfil-box h5{margin:0 0 6px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#7a2d3a}
+.fulfil-box address{font-style:normal;font-size:14px;line-height:1.6;color:#443}
+.fulfil-box .copy-addr{font-size:12px;padding:4px 10px;margin-top:8px}
+.rec-actions a.mini{text-decoration:none;color:#333;display:inline-block;line-height:1.4}
 .rec-actions{margin-top:8px;display:flex;gap:8px;flex-wrap:wrap}
-button.mini,.rec-actions button,.stock-row button{font-size:13px;padding:7px 14px;border:1px solid #ccc;background:#fff;border-radius:20px;cursor:pointer}
-button.mini:hover{border-color:#7a2d3a}
+button.mini,.rec-actions button,.rec-actions a.mini,.stock-row button{font-size:13px;padding:7px 14px;border:1px solid #ccc;background:#fff;border-radius:20px;cursor:pointer}
+button.mini:hover,.rec-actions a.mini:hover{border-color:#7a2d3a}
 .admin-msg{color:#7a2d3a;margin-top:12px;font-size:14px;min-height:18px}
 #admin-bar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
 .stock-row{display:grid;grid-template-columns:1fr 110px 100px;gap:12px;align-items:center;padding:12px 0;border-top:1px solid #eee}
@@ -278,6 +289,20 @@ function renderInventory(products) {
     (products.map(p => `<div class="stock-row"><div><b>${esc(p.name)}</b><div class="muted">${esc(p.brand)} · ${money(p.price)}${p.active ? '' : ' · draft'}</div></div><input id="stock-${esc(p.id)}" type="number" min="0" step="1" value="${p.stock}"><button data-act="stock" data-id="${esc(p.id)}">Save</button></div>`).join('') || '<p>No products yet.</p>');
 }
 
+/* No transactional-email provider is configured server-side, so the dashboard
+   opens a pre-filled draft in the owner's own mail client instead. */
+function mailtoReady(r) {
+  const collection = r.fulfilment === 'collection';
+  const ref = String(r.id || '').slice(0, 8).toUpperCase();
+  const subject = collection
+    ? `Your Diamond Beauty order ${ref} is ready to collect`
+    : `Your Diamond Beauty order ${ref} has been dispatched`;
+  const body = collection
+    ? `Hi ${r.name || ''},\n\nYour order (ref ${ref}) is packed and ready to collect from:\n\nDiamond Beauty & Hair Clinic\n159 Front Street, Arnold, Nottingham NG5 7EE\n\n${r.collection_date ? `We have you down for ${r.collection_date}. ` : ''}We are open Monday to Friday 10:00-18:00 and Saturday 10:00-16:00.\n\nSee you soon,\nDiamond Beauty & Hair Clinic\n07508 775 775`
+    : `Hi ${r.name || ''},\n\nYour order (ref ${ref}) is on its way to:\n\n${[r.address1, r.address2, r.city, r.county, r.postcode].filter(Boolean).join('\n')}\n\nThank you for shopping with us,\nDiamond Beauty & Hair Clinic\n07508 775 775`;
+  return `mailto:${encodeURIComponent(r.email || '')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
 function renderRecords(rows) {
   if (!rows.length) { $('records').innerHTML = '<p>Nothing here yet.</p>'; return; }
   $('records').innerHTML = rows.map(r => {
@@ -288,11 +313,31 @@ function renderRecords(rows) {
       return `<div class="rec"><div class="rec-head"><b>${esc(r.name)}</b><span><span class="pill ${esc(r.status)}">${esc(r.status)}</span> <span class="muted">${fmtDate(r.created_at)}</span></span></div><p>${esc(r.email)}${r.phone ? ' · ' + esc(r.phone) : ''}</p><p><span class="pill">${esc(r.treatment || 'General')}</span></p><p>${esc(r.message || '')}</p><div class="rec-actions">${actions}<button data-act="remove" data-id="${esc(r.id)}" style="color:#a33">Delete</button></div></div>`;
     }
     const items = (r.items || []).map(i => `${esc(i.name)} × ${i.qty} — ${money((i.price_pence || 0) * i.qty / 100)}`).join('<br>');
+    const collection = r.fulfilment === 'collection';
+    const paid = r.payment_status === 'paid';
+
+    const fulfilBox = collection
+      ? `<div class="fulfil-box"><h5>Collection${r.collection_date ? ' · ' + esc(r.collection_date) : ''}</h5><address>159 Front Street, Arnold, Nottingham NG5 7EE<br><span class="muted">${r.collection_ack ? 'Customer acknowledged they wait for the ready email.' : 'No acknowledgement recorded.'}</span></address></div>`
+      : `<div class="fulfil-box"><h5>Deliver to</h5><address id="addr-${esc(r.id)}">${[r.address1, r.address2, r.city, r.county, r.postcode].filter(Boolean).map(esc).join('<br>') || '<span class="muted">No address recorded (order predates delivery capture).</span>'}</address>${r.postcode ? `<button class="mini copy-addr" data-act="copy-addr" data-id="${esc(r.id)}">Copy address</button>` : ''}</div>`;
+
+    // Fulfilment progression, gated on payment having actually landed.
     let actions = '';
-    if (r.payment_status === 'paid' && r.status !== 'fulfilled') actions += `<button data-act="status" data-id="${esc(r.id)}" data-status="fulfilled">Mark fulfilled</button>`;
-    if (r.payment_status !== 'paid' && !r.inventory_restored) actions += `<button data-act="status" data-id="${esc(r.id)}" data-status="cancelled">Cancel &amp; return stock</button>`;
+    if (paid) {
+      if (r.status !== 'packing' && r.status !== 'fulfilled') actions += `<button data-act="status" data-id="${esc(r.id)}" data-status="packing">Packing</button>`;
+      if (collection) {
+        if (r.status !== 'ready_for_collection') actions += `<button data-act="status" data-id="${esc(r.id)}" data-status="ready_for_collection">Ready to collect</button>`;
+        if (r.status !== 'collected') actions += `<button data-act="status" data-id="${esc(r.id)}" data-status="collected">Collected</button>`;
+      } else if (r.status !== 'dispatched') {
+        actions += `<button data-act="status" data-id="${esc(r.id)}" data-status="dispatched">Dispatched</button>`;
+      }
+      if (r.status !== 'fulfilled') actions += `<button data-act="status" data-id="${esc(r.id)}" data-status="fulfilled">Mark fulfilled</button>`;
+      // No mail provider is wired up, so hand the owner a pre-filled draft instead.
+      actions += `<a class="mini" href="${mailtoReady(r)}">Email customer</a>`;
+    }
+    if (!paid && !r.inventory_restored) actions += `<button data-act="status" data-id="${esc(r.id)}" data-status="cancelled">Cancel &amp; return stock</button>`;
     actions += `<button data-act="status" data-id="${esc(r.id)}" data-status="review">Review</button><button data-act="remove" data-id="${esc(r.id)}" style="color:#a33">Delete</button>`;
-    return `<div class="rec"><div class="rec-head"><b>${esc(r.name)}</b><span><span class="pill ${esc(r.payment_status)}">${esc(r.payment_status)}</span><span class="pill">${esc(r.status)}</span> <span class="muted">${fmtDate(r.created_at)}</span></span></div><p>${esc(r.email)}${r.phone ? ' · ' + esc(r.phone) : ''}</p><p>${items}</p><p><b>${money(r.total)}</b></p>${r.notes ? `<p>${esc(r.notes)}</p>` : ''}<p class="muted">Order ${esc(r.id)}${r.stripe_session_id ? ' · Stripe ' + esc(r.stripe_session_id) : ''}</p><div class="rec-actions">${actions}</div></div>`;
+
+    return `<div class="rec"><div class="rec-head"><b>${esc(r.name)}</b><span><span class="pill ${esc(r.fulfilment || 'delivery')}">${collection ? 'collection' : 'delivery'}</span><span class="pill ${esc(r.payment_status)}">${esc(r.payment_status)}</span><span class="pill ${esc(r.status)}">${esc(String(r.status || '').replace(/_/g, ' '))}</span> <span class="muted">${fmtDate(r.created_at)}</span></span></div><p>${esc(r.email)}${r.phone ? ' · ' + esc(r.phone) : ''}</p>${fulfilBox}<p>${items}</p><p><b>${money(r.total)}</b></p>${r.notes ? `<p>${esc(r.notes)}</p>` : ''}<p class="muted">Order ${esc(r.id)}${r.stripe_session_id ? ' · Stripe ' + esc(r.stripe_session_id) : ''}</p><div class="rec-actions">${actions}</div></div>`;
   }).join('');
 }
 
@@ -332,6 +377,15 @@ $('records').addEventListener('click', async e => {
     if (act === 'preview') return window.open('/product?id=' + encodeURIComponent(id), '_blank', 'noopener');
     if (act === 'up') return reorder(id, -1);
     if (act === 'down') return reorder(id, 1);
+    if (act === 'copy-addr') {
+      const el = $('addr-' + id);
+      if (el) {
+        await navigator.clipboard.writeText(el.innerText.trim());
+        btn.textContent = 'Copied';
+        setTimeout(() => { btn.textContent = 'Copy address'; }, 1600);
+      }
+      return;
+    }
     if (act === 'toggle') {
       const product = catalogue.find(p => p.id === id);
       await api('/api/admin/products/' + encodeURIComponent(id), { method: 'PATCH', body: JSON.stringify({ active: !product.active }) });

@@ -125,3 +125,81 @@
 .shop-source-shade{background:linear-gradient(90deg,rgba(42,25,27,.72) 0%,rgba(42,25,27,.38) 42%,rgba(42,25,27,.06) 76%)}
 @media(max-width:1000px){.treatment-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.treatment-grid .service-card{height:500px}}
 @media(max-width:600px){.treatments-subhero{padding-bottom:32px}.treatments-subhero p{font-size:18px;padding:0 18px}.treatment-grid{grid-template-columns:1fr;gap:16px}.treatment-grid .service-card{height:440px}.treatment-grid .service-copy{left:24px;right:24px;bottom:24px}.treatment-cta{display:block;margin-top:44px;padding-top:34px}.treatment-cta .btn{margin-top:26px}}
+
+/* ---------- Checkout ---------- */
+.checkout-page{padding:34px 0 100px;background:linear-gradient(180deg,var(--ivory) 0,var(--paper) 46%)}
+.checkout-layout{display:grid;grid-template-columns:1.12fr .88fr;gap:28px;align-items:start;margin-top:42px}
+.checkout-card{background:var(--paper);border:1px solid var(--line);padding:clamp(26px,3.4vw,46px)}
+.checkout-summary{position:sticky;top:26px;background:var(--ivory)}
+.checkout-step{display:flex;align-items:baseline;gap:12px;margin:0 0 22px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.checkout-step span{font:italic 30px/1 'Cormorant Garamond';color:var(--rose)}
+.checkout-step h3{font-size:27px}
+.checkout-card + .checkout-card{margin-top:22px}
+
+/* Boxed fields read better than underlines for an address block */
+.checkout-form input,.checkout-form textarea,.checkout-form select{
+  width:100%;padding:13px 14px;border:1px solid var(--line);border-radius:2px;
+  background:var(--paper);margin-bottom:0;font:inherit;color:var(--ink);transition:border-color .2s,box-shadow .2s}
+.checkout-form textarea{height:96px;resize:vertical}
+.checkout-form input:focus,.checkout-form textarea:focus,.checkout-form select:focus{
+  outline:none;border-color:var(--wine);box-shadow:0 0 0 3px rgba(84,47,53,.09)}
+/* :user-invalid only matches after the field has been interacted with, so an
+   untouched required field never starts out looking like an error. */
+.checkout-form input:user-invalid,.checkout-form textarea:user-invalid{border-color:#a84553}
+.checkout-form .field>label{display:block;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:0 0 7px}
+/* .choice and .ack are <label> too - keep the field styling off their contents */
+.choice,.ack{text-transform:none;letter-spacing:normal;font-size:15px;color:var(--ink)}
+.field{margin-bottom:18px}
+.field-pair{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.field-hint{font-size:11px;color:var(--muted);margin:6px 0 0}
+
+/* Delivery / collection selector */
+.choice-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.choice{position:relative;display:block;cursor:pointer}
+.choice input{position:absolute;opacity:0;width:0;height:0}
+.choice-body{border:1px solid var(--line);padding:20px;height:100%;transition:border-color .2s,background .2s}
+.choice-body h4{font:500 23px/1.1 'Cormorant Garamond';margin:0 0 6px}
+.choice-body p{font-size:12px;color:var(--muted);margin:0;line-height:1.55}
+.choice:hover .choice-body{border-color:var(--rose)}
+.choice input:checked + .choice-body{border-color:var(--wine);background:#fff;box-shadow:inset 0 0 0 1px var(--wine)}
+.choice input:focus-visible + .choice-body{outline:2px solid var(--wine);outline-offset:2px}
+.choice-tick{position:absolute;top:16px;right:16px;width:16px;height:16px;border:1px solid var(--line);border-radius:50%;display:grid;place-items:center}
+.choice input:checked ~ .choice-tick{border-color:var(--wine);background:var(--wine)}
+.choice input:checked ~ .choice-tick::after{content:"";width:5px;height:5px;border-radius:50%;background:#fff}
+
+/* Acknowledgement */
+.ack{display:flex;gap:12px;align-items:flex-start;padding:18px;background:var(--ivory);border:1px solid var(--line);margin-top:18px}
+.ack input{width:17px;height:17px;flex:0 0 auto;margin:2px 0 0;accent-color:var(--wine)}
+.ack p{margin:0;font-size:12px;line-height:1.6;color:var(--ink)}
+.ack strong{font-weight:600}
+
+/* Summary */
+.sum-line{display:flex;justify-content:space-between;gap:16px;padding:9px 0;font-size:13px}
+.sum-line span:last-child{white-space:nowrap}
+.sum-total{display:flex;justify-content:space-between;padding:15px 0 0;margin-top:10px;border-top:1px solid var(--line);font-size:15px}
+.sum-total b:first-child{font-weight:500}
+.sum-method{margin-top:18px;padding-top:16px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+.sum-method b{color:var(--ink);font-weight:500}
+.form-error{color:#8c2f3f;background:#fbeef0;border-left:2px solid #8c2f3f;padding:12px 14px;font-size:13px;margin:0 0 18px}
+.form-error:empty{display:none}
+.checkout-submit{width:100%;margin-top:8px}
+.checkout-submit[disabled]{opacity:.55;cursor:not-allowed}
+.checkout-trust{font-size:11px;color:var(--muted);margin:16px 0 0;text-align:center;line-height:1.6}
+
+@media(max-width:900px){
+  .checkout-layout{grid-template-columns:1fr}
+  .checkout-summary{position:static;order:-1}
+}
+@media(max-width:600px){
+  .checkout-page{padding:22px 0 70px}
+  .choice-grid,.field-pair{grid-template-columns:1fr}
+}
+
+/* Nav bag button: the ghost variant vanished against the paper header */
+.page-nav .btn.ghost,.nav.scrolled .btn.ghost{
+  border-color:var(--wine);color:var(--wine);background:transparent}
+.page-nav .btn.ghost:hover,.nav.scrolled .btn.ghost:hover{background:var(--wine);color:#fff}
+.nav .btn.ghost{border-color:currentColor}
+.nav .btn.ghost:hover{background:#fff;color:var(--wine);border-color:#fff}
+.btn.ghost{transition:background .2s,color .2s,border-color .2s}
+.cart-count{font-variant-numeric:tabular-nums;margin-left:2px}
