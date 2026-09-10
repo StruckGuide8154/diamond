@@ -25,19 +25,19 @@
         </label>
         <label class="choice">
           <input type="radio" name="fulfilment" value="collection">
-          <div class="choice-body"><h4>Collect in clinic</h4><p>Pick up from 159 Front Street, Arnold, on a date that suits you.</p></div>
+          <div class="choice-body"><h4>Collect in clinic</h4><p>Pick up from 155-157 Nottingham Rd, Arnold, on a date that suits you.</p></div>
           <span class="choice-tick"></span>
         </label>
       </div>
 
       <div id="delivery-fields" style="margin-top:26px">
-        <div class="field"><label for="o-address1">Address line 1</label><input id="o-address1" autocomplete="address-line1" placeholder="159 Front Street"></div>
+        <div class="field"><label for="o-address1">Address line 1</label><input id="o-address1" autocomplete="address-line1" placeholder="155-157 Nottingham Rd"></div>
         <div class="field"><label for="o-address2">Address line 2 <span style="text-transform:none;letter-spacing:0">(optional)</span></label><input id="o-address2" autocomplete="address-line2" placeholder="Flat, building, company"></div>
         <div class="field-pair">
           <div class="field"><label for="o-city">Town or city</label><input id="o-city" autocomplete="address-level2" placeholder="Nottingham"></div>
           <div class="field"><label for="o-county">County <span style="text-transform:none;letter-spacing:0">(optional)</span></label><input id="o-county" autocomplete="address-level1" placeholder="Nottinghamshire"></div>
         </div>
-        <div class="field" style="max-width:220px"><label for="o-postcode">Postcode</label><input id="o-postcode" autocomplete="postal-code" placeholder="NG5 7EE" spellcheck="false"></div>
+        <div class="field" style="max-width:220px"><label for="o-postcode">Postcode</label><input id="o-postcode" autocomplete="postal-code" placeholder="NG5 6JN" spellcheck="false"></div>
       </div>
 
       <div id="collection-fields" hidden style="margin-top:26px">
@@ -95,7 +95,7 @@ function renderMethod(){
   $('o-collection-ack').required=collection;
   const d=val('o-collection-date');
   $('summary-method').innerHTML=collection
-    ?`<b>Collection</b> from 159 Front Street, Arnold${d?` on ${escapeHtml(d)}`:''}.<br>We email you when it is ready.`
+    ?`<b>Collection</b> from 155-157 Nottingham Rd, Arnold${d?` on ${escapeHtml(d)}`:''}.<br>We email you when it is ready.`
     :'<b>Delivery</b> to your UK address once packed.';
 }
 
