@@ -47,7 +47,7 @@ button.mini:hover,.rec-actions a.mini:hover{border-color:#7a2d3a}
 @media(max-width:900px){.editor{grid-template-columns:1fr}}
 @media(max-width:650px){.stock-row{grid-template-columns:1fr 90px}.stock-row button{grid-column:1/-1}.grid2{grid-template-columns:1fr}.prod-row{grid-template-columns:48px 1fr}.prod-row img{width:48px;height:48px}.prod-row .rec-actions{grid-column:1/-1}}
 </style></head><body>
-<script src="/assets/js/components.js"></script><script>header()</script>
+<script src="/assets/js/components.js?v=20260910-address"></script><script>header()</script>
 <div class="admin-wrap">
 
 <div id="setup-view" class="admin-card" style="display:none">
@@ -298,7 +298,7 @@ function mailtoReady(r) {
     ? `Your Diamond Beauty order ${ref} is ready to collect`
     : `Your Diamond Beauty order ${ref} has been dispatched`;
   const body = collection
-    ? `Hi ${r.name || ''},\n\nYour order (ref ${ref}) is packed and ready to collect from:\n\nDiamond Beauty & Hair Clinic\n159 Front Street, Arnold, Nottingham NG5 7EE\n\n${r.collection_date ? `We have you down for ${r.collection_date}. ` : ''}We are open Monday to Friday 10:00-18:00 and Saturday 10:00-16:00.\n\nSee you soon,\nDiamond Beauty & Hair Clinic\n07508 775 775`
+    ? `Hi ${r.name || ''},\n\nYour order (ref ${ref}) is packed and ready to collect from:\n\nDiamond Beauty & Hair Clinic\n155-157 Nottingham Rd, Arnold, Nottingham NG5 6JN\n\n${r.collection_date ? `We have you down for ${r.collection_date}. ` : ''}We are open Monday to Friday 10:00-18:00 and Saturday 10:00-16:00.\n\nSee you soon,\nDiamond Beauty & Hair Clinic\n07508 775 775`
     : `Hi ${r.name || ''},\n\nYour order (ref ${ref}) is on its way to:\n\n${[r.address1, r.address2, r.city, r.county, r.postcode].filter(Boolean).join('\n')}\n\nThank you for shopping with us,\nDiamond Beauty & Hair Clinic\n07508 775 775`;
   return `mailto:${encodeURIComponent(r.email || '')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
@@ -317,7 +317,7 @@ function renderRecords(rows) {
     const paid = r.payment_status === 'paid';
 
     const fulfilBox = collection
-      ? `<div class="fulfil-box"><h5>Collection${r.collection_date ? ' · ' + esc(r.collection_date) : ''}</h5><address>159 Front Street, Arnold, Nottingham NG5 7EE<br><span class="muted">${r.collection_ack ? 'Customer acknowledged they wait for the ready email.' : 'No acknowledgement recorded.'}</span></address></div>`
+      ? `<div class="fulfil-box"><h5>Collection${r.collection_date ? ' · ' + esc(r.collection_date) : ''}</h5><address>155-157 Nottingham Rd, Arnold, Nottingham NG5 6JN<br><span class="muted">${r.collection_ack ? 'Customer acknowledged they wait for the ready email.' : 'No acknowledgement recorded.'}</span></address></div>`
       : `<div class="fulfil-box"><h5>Deliver to</h5><address id="addr-${esc(r.id)}">${[r.address1, r.address2, r.city, r.county, r.postcode].filter(Boolean).map(esc).join('<br>') || '<span class="muted">No address recorded (order predates delivery capture).</span>'}</address>${r.postcode ? `<button class="mini copy-addr" data-act="copy-addr" data-id="${esc(r.id)}">Copy address</button>` : ''}</div>`;
 
     // Fulfilment progression, gated on payment having actually landed.
