@@ -1,1 +1,1 @@
-web: gunicorn server:app --bind 0.0.0.0:$PORT
+web: python catalogue_stocktake_2026_09_14.py && gunicorn server:app --bind 0.0.0.0:$PORT
