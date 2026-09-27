@@ -56,7 +56,7 @@ Legacy names still work as fallbacks: `ADMIN_USER`/`ADMIN_EMAIL`, `ADMIN_PASSWOR
 - **Images** — upload PNG, JPEG, WebP, GIF or AVIF (up to 4 MB). Uploads are
   stored in Redis and served from `/media/<id>`, so they survive redeploys on
   hosts with an ephemeral filesystem. An https:// image URL can be pasted instead.
-- **Stock control** — set stock per product in one list.
+- **Prices & stock** — set the price and stock of every product in one list (Save per row).
 - **Orders** — Stripe payment state, fulfilment, cancellation (which returns the
   reserved stock) and deletion.
 - **Booking requests** — everything submitted through the contact form.
