@@ -192,6 +192,38 @@ def resolve_one(product_id, record):
     return product_id, "", ""
 
 
+def set_image_fields(db, product_id, expected_image, image, source, now):
+    """Atomically update only image/source on the current product record."""
+    key = f"product:{product_id}"
+    with db.pipeline() as pipe:
+        for _ in range(5):
+            try:
+                pipe.watch(key)
+                raw = pipe.get(key)
+                if not raw:
+                    pipe.unwatch()
+                    return False
+                current = json.loads(raw)
+                if current.get("image") != expected_image:
+                    # An admin already chose a different image; respect it.
+                    pipe.unwatch()
+                    return True
+                current["image"] = image
+                if source:
+                    current["source"] = source
+                current["updated_at"] = now
+                pipe.multi()
+                pipe.set(key, json.dumps(current, separators=(",", ":"), ensure_ascii=False))
+                pipe.execute()
+                return True
+            except redis.WatchError:
+                continue
+            except json.JSONDecodeError:
+                pipe.unwatch()
+                return False
+    return False
+
+
 def main():
     db = redis.Redis.from_url(
         REDIS_URL,
@@ -245,14 +277,12 @@ def main():
             resolved.append((product_id, record, image, source))
 
     now = int(time.time())
-    pipe = db.pipeline()
     for product_id, record, image, source in resolved:
-        record["image"] = image
-        if source:
-            record["source"] = source
-        record["updated_at"] = now
-        pipe.set(f"product:{product_id}", json.dumps(record, separators=(",", ":"), ensure_ascii=False))
-    pipe.execute()
+        # Re-read the live record and only swap the image/source fields, so a
+        # price, stock or copy edit made in /admin is never overwritten by the
+        # (possibly minutes old) copy read before the images were resolved.
+        if not set_image_fields(db, product_id, record.get("image"), image, source, now):
+            unresolved.append((product_id, "record changed in admin; left untouched"))
 
     if unresolved:
         ids = ", ".join(product_id for product_id, _ in unresolved)

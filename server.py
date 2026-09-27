@@ -1268,7 +1268,7 @@ def admin_update_product(product_id):
 @app.patch("/api/admin/products/<product_id>")
 @admin_required
 def admin_patch_product(product_id):
-    """Partial update used for quick stock edits and publish/unpublish toggles."""
+    """Partial update used for quick price/stock edits and publish/unpublish toggles."""
     product_id = clean_text(product_id, 80)
     existing = get_product(product_id)
     if not existing:
@@ -1279,11 +1279,13 @@ def admin_patch_product(product_id):
         return jsonify(error="Request body is too large."), 413
 
     stock = None
-    if "stock" in payload:
-        try:
+    try:
+        if "stock" in payload:
             stock = parse_stock(payload.get("stock"))
-        except ValueError as exc:
-            return jsonify(error=str(exc)), 400
+        if "price" in payload:
+            existing["price_pence"] = parse_price(payload.get("price"))
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 400
     if "active" in payload:
         existing["active"] = bool(payload.get("active"))
     if "position" in payload:

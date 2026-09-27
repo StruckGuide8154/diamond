@@ -20,6 +20,7 @@ from urllib.request import Request, urlopen
 
 import redis
 
+from catalogue_stock_images_2026_09_14 import set_image_fields
 from catalogue_stocktake_2026_09_14 import PHOTO_PRODUCTS
 
 MIGRATION_KEY = "catalogue:migration:stock-image-cache:2026-09-14:v1"
@@ -147,13 +148,12 @@ def main():
             unresolved.append(product_id)
             continue
 
-        record["image"] = local_url
-        record["updated_at"] = now
-        db.set(
-            f"product:{product_id}",
-            json.dumps(record, separators=(",", ":"), ensure_ascii=False),
-        )
-        cached += 1
+        # Only swap the image on the *current* record (re-read atomically), so
+        # prices/stock/copy edited in /admin are never rolled back.
+        if set_image_fields(db, product_id, image_url, local_url, "", now):
+            cached += 1
+        else:
+            unresolved.append(product_id)
 
     if unresolved:
         print(
