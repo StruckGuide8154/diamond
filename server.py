@@ -503,6 +503,12 @@ def public_product(record, stock=None):
     }
 
 
+def storefront_product(product):
+    """Customer-facing view: the manufacturer link stays admin-only."""
+    product.pop("source", None)
+    return product
+
+
 IMAGE_PATH_RE = re.compile(r"^/(assets|media)/[A-Za-z0-9._/\-]{1,200}$")
 
 
@@ -850,7 +856,7 @@ def public_config():
 @app.get("/api/products")
 def products():
     seed_catalogue()
-    return jsonify(products=list_products())
+    return jsonify(products=[storefront_product(p) for p in list_products()])
 
 
 @app.get("/api/categories")
@@ -866,7 +872,7 @@ def product_detail(product_id):
         return jsonify(error="Product not found."), 404
     if not record.get("active", True) and not is_admin():
         return jsonify(error="Product not found."), 404
-    return jsonify(product=public_product(record))
+    return jsonify(product=storefront_product(public_product(record)))
 
 
 @app.post("/api/messages")

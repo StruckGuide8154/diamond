@@ -137,7 +137,6 @@ async function renderDetail() {
       <p>${esc(p.description)}</p>
       <p class="legal" data-live-stock>${stockNote}</p>
       <button class="btn" data-add="${esc(p.id)}" ${p.stock === 0 ? 'disabled' : ''}>${p.stock === 0 ? 'Out of stock' : 'Add to bag'}</button>
-      ${p.source ? `<p class="legal"><a href="${esc(p.source)}" rel="nofollow noopener" target="_blank">Manufacturer information</a></p>` : ''}
       <div class="notice"><b>Curated by Diamond Beauty.</b><br>For supplements, follow the product label and speak to a healthcare professional where appropriate. Product packaging may vary.</div>
     </div>`;
   document.title = `${p.name} | Diamond Beauty`;
