@@ -2,15 +2,23 @@
    so the browser always asks the Flask server for it rather than shipping a
    hard-coded list. */
 let PRODUCTS = [];
+let CATEGORIES = [];
 
-const productsReady = fetch('/api/products', { headers: { Accept: 'application/json' } })
-  .then(res => (res.ok ? res.json() : { products: [] }))
-  .then(data => {
-    PRODUCTS = Array.isArray(data.products) ? data.products : [];
-    return PRODUCTS;
-  })
-  .catch(err => {
-    console.warn('Catalogue unavailable', err);
-    PRODUCTS = [];
-    return PRODUCTS;
-  });
+function loadCatalogueEndpoint(url, key) {
+  return fetch(url, { headers: { Accept: 'application/json' } })
+    .then(res => (res.ok ? res.json() : { [key]: [] }))
+    .then(data => (Array.isArray(data[key]) ? data[key] : []))
+    .catch(err => {
+      console.warn(`${key} unavailable`, err);
+      return [];
+    });
+}
+
+const productsReady = Promise.all([
+  loadCatalogueEndpoint('/api/products', 'products'),
+  loadCatalogueEndpoint('/api/categories', 'categories')
+]).then(([products, categories]) => {
+  PRODUCTS = products;
+  CATEGORIES = categories;
+  return PRODUCTS;
+});
