@@ -93,9 +93,21 @@ function renderGrid() {
 function renderFilters(shown) {
   const bar = document.querySelector('.filters');
   if (!bar) return;
-  const categories = [...new Set(shown.map(p => p.category).filter(Boolean))].sort();
-  bar.innerHTML = ['all', ...categories].map((cat, i) =>
-    `<button class="filter${i === 0 ? ' active' : ''}" data-filter="${esc(cat)}">${esc(cat === 'all' ? 'All' : shown.find(p => p.category === cat)?.category_name || cat.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()))}</button>`
+
+  const configured = Array.isArray(CATEGORIES)
+    ? CATEGORIES.filter(category => category && category.id)
+    : [];
+  const fallback = [...new Set(shown.map(p => p.category).filter(Boolean))]
+    .sort()
+    .map(id => ({
+      id,
+      name: shown.find(p => p.category === id)?.category_name
+        || id.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+    }));
+  const categories = configured.length ? configured : fallback;
+
+  bar.innerHTML = [{ id: 'all', name: 'All' }, ...categories].map((category, i) =>
+    `<button class="filter${i === 0 ? ' active' : ''}" data-filter="${esc(category.id)}">${esc(category.name || category.id)}</button>`
   ).join('');
   bar.querySelectorAll('.filter').forEach(b => {
     b.onclick = () => {
