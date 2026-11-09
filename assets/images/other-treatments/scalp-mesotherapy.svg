@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240" viewBox="0 0 320 240" role="img" aria-labelledby="title desc">
+<title id="title">Needle Mesotherapy (Scalp)</title><desc id="desc">Original line illustration for the treatment.</desc>
+<defs><linearGradient id="bg" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#fbfbf5"/><stop offset="1" stop-color="#f2e2df"/></linearGradient></defs>
+<rect width="320" height="240" rx="18" fill="url(#bg)"/><circle cx="161" cy="125" r="98" fill="#fff" opacity=".45"/><circle cx="269" cy="42" r="30" fill="#c4daca" opacity=".45"/><circle cx="35" cy="203" r="44" fill="#f0dbcf" opacity=".43"/>
+<g fill="none" stroke="#754653" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"><path d="M126 198q-10-28-22-53-16-79 55-89 68-9 74 59 4 44-37 62l-5 21"/><path d="M104 115q18-56 73-57 38 0 55 45"/><path d="M126 89q23-21 45-18m13 4q14 3 24 15" stroke-dasharray="4 8"/><circle cx="134" cy="69" r="6" fill="#ecc4be"/><circle cx="169" cy="62" r="6" fill="#ecc4be"/><circle cx="200" cy="79" r="6" fill="#ecc4be"/></g></svg>

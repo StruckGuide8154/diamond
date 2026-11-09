@@ -203,3 +203,14 @@
 .nav .btn.ghost:hover{background:#fff;color:var(--wine);border-color:#fff}
 .btn.ghost{transition:background .2s,color .2s,border-color .2s}
 .cart-count{font-variant-numeric:tabular-nums;margin-left:2px}
+
+/* Diamond Beauty: other treatments available */
+.treatments-subhero h1{font-size:clamp(46px,6.1vw,82px);max-width:1000px;margin-inline:auto}
+.treatment-grid .service-card{isolation:isolate;background:#eadad5}
+.treatment-grid .service-card img{width:100%;height:100%;object-fit:cover;object-position:center;background:#f5e9e5;filter:saturate(.84)}
+.treatment-grid .service-card::after{background:linear-gradient(180deg,rgba(42,25,27,.04) 18%,rgba(42,25,27,.34) 47%,rgba(42,25,27,.94) 100%)}
+.treatment-grid .service-card:hover img{transform:scale(1.04)}
+.treatment-price{position:absolute;z-index:2;top:20px;right:20px;display:block;padding:10px 15px;background:rgba(65,34,39,.94);border:1px solid rgba(255,255,255,.35);color:#fff;font-size:14px;font-weight:600;letter-spacing:.02em;white-space:nowrap}
+.treatment-grid .service-copy h3{font-size:clamp(27px,2.3vw,39px)}
+.treatment-disclaimer{font-size:12px;line-height:1.7;color:var(--muted);text-align:center;margin:28px auto 0;max-width:660px}
+@media(max-width:600px){.treatments-subhero h1{font-size:clamp(44px,10vw,64px)}.treatment-price{top:16px;right:16px}}

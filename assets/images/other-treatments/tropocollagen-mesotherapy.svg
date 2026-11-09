@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240" viewBox="0 0 320 240" role="img" aria-labelledby="title desc">
+<title id="title">Tropocollagen Mesotherapy</title><desc id="desc">Original line illustration for the treatment.</desc>
+<defs><linearGradient id="bg" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#fbfbf5"/><stop offset="1" stop-color="#eee0db"/></linearGradient></defs>
+<rect width="320" height="240" rx="18" fill="url(#bg)"/><circle cx="161" cy="125" r="98" fill="#fff" opacity=".45"/><circle cx="269" cy="42" r="30" fill="#c4daca" opacity=".45"/><circle cx="35" cy="203" r="44" fill="#f0dbcf" opacity=".43"/>
+<g fill="none" stroke="#754653" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"><path d="M123 50c77 30 0 55 76 90s-2 42 42 64M206 50c-77 30 0 55-76 90s2 42-42 64"/><path d="M121 60h84m-55 24h27m-46 26h67m-53 30h25m-50 30h75m-91 24h104"/><circle cx="123" cy="60" r="6" fill="#edc2bd"/><circle cx="197" cy="110" r="6" fill="#edc2bd"/></g></svg>
